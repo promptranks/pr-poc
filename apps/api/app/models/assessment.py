@@ -25,8 +25,8 @@ class Assessment(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    mode = Column(Enum(AssessmentMode), nullable=False)
-    status = Column(Enum(AssessmentStatus), default=AssessmentStatus.in_progress)
+    mode: Column[AssessmentMode] = Column(Enum(AssessmentMode), nullable=False)
+    status: Column[AssessmentStatus] = Column(Enum(AssessmentStatus), default=AssessmentStatus.in_progress)
     industry = Column(String, nullable=True)
     role = Column(String, nullable=True)
 
