@@ -11,8 +11,12 @@ from pathlib import Path
 
 import yaml
 
-# Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "apps" / "api"))
+# Add paths for imports — works both inside container (/app) and locally
+script_dir = Path(__file__).resolve().parent
+# Inside container: /app/scripts -> /app (where app/ package lives)
+sys.path.insert(0, str(script_dir.parent))
+# Local dev: /repo/scripts -> /repo/apps/api (where app/ package lives)
+sys.path.insert(0, str(script_dir.parent / "apps" / "api"))
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker

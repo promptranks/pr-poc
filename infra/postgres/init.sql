@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 -- Assessments
 CREATE TABLE IF NOT EXISTS assessments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id),
+    user_id UUID REFERENCES users(id),
     mode VARCHAR(10) NOT NULL CHECK (mode IN ('quick', 'full')),
     status VARCHAR(20) NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'voided', 'expired')),
     industry VARCHAR(100),
