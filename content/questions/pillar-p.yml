@@ -1,0 +1,86 @@
+# Sample KBA Questions — Pillar P (Prompt Design)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  pillar: "P"
+  last_updated: "2026-03-22"
+
+questions:
+  - id: "P-001"
+    difficulty: 1
+    type: mcq
+    text: "Which of the following is the most effective way to get a structured JSON output from an LLM?"
+    options:
+      - "Ask politely for JSON"
+      - "Provide an example of the expected JSON schema in the prompt"
+      - "Use all caps to emphasize JSON"
+      - "Send multiple messages asking for JSON"
+    correct: 1
+    explanation: "Providing an example schema (few-shot) is the most reliable way to get structured output. It gives the model a concrete template to follow."
+    tags: ["format-control", "few-shot"]
+
+  - id: "P-002"
+    difficulty: 1
+    type: mcq
+    text: "What is 'role prompting'?"
+    options:
+      - "Assigning a persona or expertise to the AI before giving a task"
+      - "Asking the AI to play a game"
+      - "Defining user permissions in an API"
+      - "Creating multiple AI agents with different roles"
+    correct: 0
+    explanation: "Role prompting sets a persona (e.g., 'You are an expert data scientist') to frame the AI's responses with domain-appropriate knowledge and tone."
+    tags: ["role-framing", "persona"]
+
+  - id: "P-003"
+    difficulty: 2
+    type: mcq
+    text: "You need an LLM to generate a product description that is exactly 3 sentences, uses a professional tone, and avoids superlatives. Which prompt technique is most appropriate?"
+    options:
+      - "Write a product description"
+      - "Write a good product description, make it professional"
+      - "Write a product description. Constraints: exactly 3 sentences, professional tone, no superlatives (e.g., avoid 'best', 'greatest', 'unmatched')"
+      - "Write a 3-sentence product description and make sure it sounds professional and doesn't use words like best"
+    correct: 2
+    explanation: "Explicit constraint definition with examples of what to avoid gives the model the clearest instructions. Labeling the section 'Constraints' helps the model parse requirements."
+    tags: ["constraints", "specificity"]
+
+  - id: "P-004"
+    difficulty: 2
+    type: mcq
+    text: "What is the primary benefit of 'negative prompting' (telling the model what NOT to do)?"
+    options:
+      - "It makes the model run faster"
+      - "It reduces the chance of common unwanted behaviors"
+      - "It increases the model's creativity"
+      - "It bypasses safety filters"
+    correct: 1
+    explanation: "Negative constraints (e.g., 'Do not include disclaimers', 'Do not use bullet points') help prevent common default behaviors that may not match your needs."
+    tags: ["negative-prompting", "constraints"]
+
+  - id: "P-005"
+    difficulty: 3
+    type: mcq
+    text: "You're designing a prompt to extract entities from legal contracts. The output must be valid JSON, handle missing fields with null, and process documents up to 50 pages. Which combination of techniques is most robust?"
+    options:
+      - "Few-shot examples + explicit JSON schema + chunking strategy for long documents"
+      - "Simple instruction + hope for the best"
+      - "Chain-of-thought reasoning + verbose output"
+      - "Role prompting as a lawyer + asking for JSON"
+    correct: 0
+    explanation: "Complex extraction tasks require: (1) few-shot examples showing the expected format including null handling, (2) explicit schema definition, and (3) a chunking strategy for documents exceeding context limits."
+    tags: ["extraction", "schema", "chunking"]
+
+  - id: "P-006"
+    difficulty: 3
+    type: mcq
+    text: "When using few-shot examples in a prompt, what is the optimal number of examples for most tasks?"
+    options:
+      - "1 example is always sufficient"
+      - "2-3 examples covering different edge cases"
+      - "10+ examples for maximum accuracy"
+      - "As many as will fit in the context window"
+    correct: 1
+    explanation: "2-3 well-chosen examples that cover different scenarios and edge cases typically provide the best balance of clarity and token efficiency. More examples have diminishing returns and consume context."
+    tags: ["few-shot", "examples"]

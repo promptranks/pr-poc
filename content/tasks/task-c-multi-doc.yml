@@ -1,0 +1,67 @@
+# PPA Task — Pillar C (Context Management)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  last_updated: "2026-03-22"
+
+task:
+  id: "TASK-C-001"
+  title: "Multi-Document Q&A"
+  pillars_tested: ["C", "M"]
+  difficulty: 2
+  is_quick: false
+  max_attempts: 3
+  time_limit_seconds: 480
+
+  brief: |
+    You are given three short documents about a company's Q1 2026 performance.
+    Write a prompt that answers the following question by synthesizing information from ALL three documents:
+
+    "What were the main factors behind the revenue growth, and what risks does the company face in Q2?"
+
+    Your prompt must:
+    - Reference specific data points from each document
+    - Clearly distinguish between facts and the company's projections
+    - Produce a structured answer with sections: Key Growth Factors, Supporting Data, Q2 Risks
+    - Be under 500 words
+
+  input_data: |
+    === DOCUMENT 1: CEO Letter to Shareholders ===
+    Q1 2026 was a strong quarter. Revenue grew 23% year-over-year to $142M, driven primarily by our enterprise segment which grew 41%. We signed 12 new enterprise contracts worth $38M in annual recurring revenue. Our self-serve segment grew 8%, below our 15% target, which we attribute to increased competition in the SMB market. We expect Q2 to be challenging as two major contracts come up for renewal.
+
+    === DOCUMENT 2: Financial Summary ===
+    Q1 2026 Revenue: $142M (vs $115.4M Q1 2025)
+    Enterprise: $89M (+41% YoY) | Self-serve: $53M (+8% YoY)
+    Gross margin: 72% (vs 74% Q1 2025) — margin compression due to cloud infrastructure costs
+    Operating expenses: $98M (+18% YoY)
+    Net income: $4.2M (vs $2.1M Q1 2025)
+    Cash: $210M | Burn rate: Positive cash flow since Q4 2025
+    Headcount: 892 (+15% YoY)
+
+    === DOCUMENT 3: Risk Factors (10-K excerpt) ===
+    Key risks: (1) Customer concentration — top 5 customers represent 34% of revenue. (2) Two enterprise contracts ($18M combined ARR) expire in Q2 2026. (3) Cloud infrastructure costs increased 28% YoY, outpacing revenue growth. (4) Three new competitors entered the enterprise market in Q1. (5) Foreign exchange exposure — 22% of revenue is EUR-denominated.
+
+  success_criteria:
+    - "Answer references specific data from all 3 documents"
+    - "Growth factors and risks are clearly separated"
+    - "Facts vs projections are distinguished"
+    - "Output has the required 3 sections"
+    - "Under 500 words"
+
+  scoring_rubric:
+    accuracy:
+      weight: 0.30
+      description: "Are data points correctly cited from the source documents?"
+    completeness:
+      weight: 0.25
+      description: "Does the answer synthesize all three documents?"
+    prompt_efficiency:
+      weight: 0.20
+      description: "Is the prompt well-structured for multi-document synthesis?"
+    output_quality:
+      weight: 0.15
+      description: "Is the answer clear, well-organized, and professional?"
+    creativity:
+      weight: 0.10
+      description: "Does the prompt handle fact vs projection distinction elegantly?"

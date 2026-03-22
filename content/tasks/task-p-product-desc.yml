@@ -1,0 +1,54 @@
+# PPA Task — Pillar P (Prompt Design)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  last_updated: "2026-03-22"
+
+task:
+  id: "TASK-P-001"
+  title: "Product Description Generator"
+  pillars_tested: ["P"]
+  difficulty: 2
+  is_quick: false
+  max_attempts: 3
+  time_limit_seconds: 480
+
+  brief: |
+    Write a prompt that generates product descriptions for an e-commerce store.
+
+    Requirements:
+    - The prompt must work for ANY product (not just one specific item)
+    - Output format: JSON with fields: title, tagline, description (3 sentences), key_features (array of 3), target_audience
+    - Tone: professional but approachable
+    - No superlatives (avoid "best", "greatest", "revolutionary")
+    - Description must be exactly 3 sentences
+
+    Test your prompt with this product:
+    "A wireless mechanical keyboard with hot-swappable switches, RGB backlighting, and a built-in USB-C hub. Battery lasts 200 hours. Compatible with Mac and Windows."
+
+  input_data: "A wireless mechanical keyboard with hot-swappable switches, RGB backlighting, and a built-in USB-C hub. Battery lasts 200 hours. Compatible with Mac and Windows."
+
+  success_criteria:
+    - "Output is valid JSON with all required fields"
+    - "Description is exactly 3 sentences"
+    - "No superlatives used"
+    - "Prompt is reusable for any product (not hardcoded)"
+    - "Tone is professional but approachable"
+
+  scoring_rubric:
+    accuracy:
+      weight: 0.30
+      description: "Does the output match all format and content requirements?"
+    completeness:
+      weight: 0.25
+      description: "Are all JSON fields present and properly filled?"
+    prompt_efficiency:
+      weight: 0.20
+      description: "Is the prompt concise, clear, and reusable?"
+    output_quality:
+      weight: 0.15
+      description: "Is the generated description compelling and well-written?"
+    creativity:
+      weight: 0.10
+      description: "Does the prompt use clever techniques (few-shot, constraints, role)?"

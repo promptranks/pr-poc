@@ -1,0 +1,86 @@
+# Sample KBA Questions — Pillar M (Meta-Cognition)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  pillar: "M"
+  last_updated: "2026-03-22"
+
+questions:
+  - id: "M-001"
+    difficulty: 1
+    type: mcq
+    text: "What is a 'hallucination' in the context of LLMs?"
+    options:
+      - "When the model generates creative fiction"
+      - "When the model generates confident-sounding but factually incorrect information"
+      - "When the model refuses to answer"
+      - "When the model produces garbled text"
+    correct: 1
+    explanation: "Hallucination refers to the model generating plausible-sounding but factually wrong content. It's particularly dangerous because the output appears confident and well-structured."
+    tags: ["hallucination", "fundamentals"]
+
+  - id: "M-002"
+    difficulty: 1
+    type: mcq
+    text: "An LLM confidently states a specific statistic about market size. What should you do?"
+    options:
+      - "Trust it — LLMs are trained on vast data"
+      - "Verify the claim against a reliable external source"
+      - "Ask the LLM if it's sure"
+      - "Accept it if it sounds reasonable"
+    correct: 1
+    explanation: "LLMs can generate plausible but fabricated statistics. Specific claims (numbers, dates, citations) should always be verified against authoritative sources."
+    tags: ["verification", "trust"]
+
+  - id: "M-003"
+    difficulty: 2
+    type: mcq
+    text: "You ask an LLM to list the pros and cons of a technology. The response lists 5 pros and only 1 con. What bias might be at play?"
+    options:
+      - "The technology genuinely has more pros"
+      - "Sycophancy bias — the model tends to agree with the implied positive framing of the question"
+      - "The model ran out of context"
+      - "There is no bias; the output is correct"
+    correct: 1
+    explanation: "LLMs exhibit sycophancy bias — they tend to align with the perceived preference of the user. If the question implies a positive view, the model may over-represent positive aspects."
+    tags: ["bias", "sycophancy"]
+
+  - id: "M-004"
+    difficulty: 2
+    type: mcq
+    text: "Which type of task is an LLM LEAST reliable for?"
+    options:
+      - "Summarizing a provided document"
+      - "Performing precise arithmetic on large numbers"
+      - "Translating between common languages"
+      - "Generating creative writing"
+    correct: 1
+    explanation: "LLMs are fundamentally text prediction systems, not calculators. They frequently make errors on precise arithmetic, especially with large numbers or multi-step calculations."
+    tags: ["limitations", "arithmetic"]
+
+  - id: "M-005"
+    difficulty: 3
+    type: mcq
+    text: "You're using an LLM to review legal contracts. The model flags a clause as 'potentially problematic.' How should you calibrate your trust in this assessment?"
+    options:
+      - "Trust it completely — the model was trained on legal data"
+      - "Treat it as a signal worth investigating but require human expert verification for any action"
+      - "Ignore it — LLMs can't understand legal nuance"
+      - "Accept it only if the model expresses high confidence"
+    correct: 1
+    explanation: "LLMs can identify patterns in legal text but lack true legal reasoning. Their flags are useful as screening signals but must be verified by qualified professionals before any action is taken."
+    tags: ["calibration", "domain-expertise"]
+
+  - id: "M-006"
+    difficulty: 3
+    type: mcq
+    text: "You notice that the same prompt produces different quality outputs when run at different times of day. What is the most likely explanation?"
+    options:
+      - "The model is tired"
+      - "Non-zero temperature settings cause stochastic variation in outputs"
+      - "Server load affects model intelligence"
+      - "The model learns from other users' queries throughout the day"
+    correct: 1
+    explanation: "With temperature > 0, LLM outputs are probabilistic. The same prompt can produce different outputs each time. This is inherent to the sampling process, not related to time of day or server load."
+    tags: ["temperature", "stochasticity"]

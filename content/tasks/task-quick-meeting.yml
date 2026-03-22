@@ -1,0 +1,92 @@
+# Sample PPA Task — Multi-pillar (Quick Assessment)
+# License: CC-BY-SA 4.0
+# Pillars tested: P (Prompt Design), C (Context Management), A (Agentic Prompting)
+
+metadata:
+  version: "1.0"
+  last_updated: "2026-03-22"
+
+task:
+  id: "TASK-QUICK-001"
+  title: "Meeting Notes to Action Plan"
+  pillars_tested: ["P", "C", "A"]
+  difficulty: 2
+  is_quick: true
+  max_attempts: 2
+  time_limit_seconds: 480
+
+  brief: |
+    You are given a transcript from a 45-minute product team meeting.
+    Your goal is to write a prompt (or prompt chain) that accomplishes ALL of the following:
+
+    1. Extract all action items from the transcript as structured JSON
+       Each action item must include: task, assignee, deadline, priority (high/medium/low)
+    2. Generate a one-paragraph executive summary of the meeting (max 100 words)
+    3. Draft a follow-up email to the team listing the action items and next steps
+
+    You may write a single prompt or chain multiple prompts. You have 2 attempts.
+
+  input_data: |
+    MEETING TRANSCRIPT — Product Team Weekly Sync
+    Date: March 20, 2026 | Duration: 45 min
+    Attendees: Sarah (PM), James (Backend), Lisa (Frontend), Mike (Design), Chen (QA)
+
+    Sarah: Let's start with the sprint review. James, how's the API migration going?
+
+    James: The v2 endpoints are done for users and orders. Still working on the payments endpoint — hit a snag with the webhook validation. Should be done by Friday. I'll need Lisa to update the frontend SDK once I push the changes.
+
+    Lisa: Got it. I can start on the SDK update Monday. But I'm blocked on the design tokens — Mike, are those finalized?
+
+    Mike: Almost. I'll have the final design tokens in Figma by end of day tomorrow. There are 3 new color variants for the dark mode that need review. Can someone from frontend validate them in the staging environment?
+
+    Lisa: I'll do that once they're in Figma. Probably Wednesday.
+
+    Sarah: Good. Chen, what's the QA status?
+
+    Chen: We found 2 critical bugs in the checkout flow — one is a race condition when applying discount codes, the other is a currency formatting issue for Japanese Yen. Both need to be fixed before the release. James, can you prioritize the race condition fix?
+
+    James: Yes, I'll look at it tomorrow. The currency issue might be a frontend thing though.
+
+    Lisa: I'll check the currency formatting on my end. If it's a display issue, I can fix it quickly.
+
+    Sarah: Let's target next Thursday for the release. That gives us a week. Chen, can you run the full regression suite by Wednesday?
+
+    Chen: If the fixes are in by Tuesday, yes. Otherwise we'll need to push the release.
+
+    Sarah: OK, so the critical path is: James fixes the race condition by Tuesday, Lisa checks the currency issue by Tuesday, Chen runs regression Wednesday, release Thursday. Mike, can you also prepare the release notes draft?
+
+    Mike: Sure, I'll have a draft by Wednesday.
+
+    Sarah: One more thing — we got feedback from the beta users about the onboarding flow. They find step 3 confusing. Mike, can you redesign that screen? Not urgent, but let's get it into the next sprint.
+
+    Mike: I'll add it to the backlog and have a proposal ready for next week's planning.
+
+    Sarah: Great. Let's wrap up. Everyone clear on their action items?
+
+    All: Yes.
+
+    Sarah: Good meeting. Talk next week.
+
+  success_criteria:
+    - "All 8+ action items correctly identified"
+    - "Each action item has task, assignee, deadline, and priority"
+    - "Output is valid JSON for the action items"
+    - "Executive summary is under 100 words and captures key decisions"
+    - "Follow-up email is professional and includes all action items"
+
+  scoring_rubric:
+    accuracy:
+      weight: 0.30
+      description: "Are all action items correctly extracted with accurate details?"
+    completeness:
+      weight: 0.25
+      description: "Are all three deliverables present (JSON, summary, email)?"
+    prompt_efficiency:
+      weight: 0.20
+      description: "Is the prompt concise and well-structured?"
+    output_quality:
+      weight: 0.15
+      description: "Is the output well-formatted, professional, and ready to use?"
+    creativity:
+      weight: 0.10
+      description: "Does the approach show clever use of prompting techniques?"

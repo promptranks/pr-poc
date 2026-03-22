@@ -1,0 +1,86 @@
+# Sample KBA Questions — Pillar A (Agentic Prompting)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  pillar: "A"
+  last_updated: "2026-03-22"
+
+questions:
+  - id: "A-001"
+    difficulty: 1
+    type: mcq
+    text: "What is 'prompt chaining'?"
+    options:
+      - "Writing very long prompts"
+      - "Using the output of one prompt as the input to the next prompt in a sequence"
+      - "Sending the same prompt to multiple models"
+      - "Repeating a prompt until you get the desired output"
+    correct: 1
+    explanation: "Prompt chaining breaks complex tasks into sequential steps where each prompt's output feeds into the next. This enables multi-step reasoning and complex workflows."
+    tags: ["chaining", "fundamentals"]
+
+  - id: "A-002"
+    difficulty: 1
+    type: mcq
+    text: "What is 'function calling' (tool use) in the context of LLMs?"
+    options:
+      - "Writing code that calls the LLM API"
+      - "The LLM's ability to request execution of external tools or APIs as part of its response"
+      - "Calling Python functions inside a prompt"
+      - "Using the LLM to generate function documentation"
+    correct: 1
+    explanation: "Function calling allows the LLM to identify when an external tool (API, database, calculator) is needed and generate the structured request to invoke it, extending its capabilities beyond text generation."
+    tags: ["tool-use", "function-calling"]
+
+  - id: "A-003"
+    difficulty: 2
+    type: mcq
+    text: "You're designing a prompt chain: Step 1 extracts data, Step 2 analyzes it, Step 3 generates a report. Step 2 occasionally produces errors. What is the best error handling strategy?"
+    options:
+      - "Retry the entire chain from Step 1"
+      - "Add validation between steps — check Step 2 output before passing to Step 3, retry only Step 2 if invalid"
+      - "Ignore errors and let Step 3 handle bad input"
+      - "Add a disclaimer that results may be inaccurate"
+    correct: 1
+    explanation: "Inter-step validation with targeted retry is the most efficient error handling pattern. It avoids wasting compute on successful steps and catches errors before they propagate."
+    tags: ["error-handling", "validation"]
+
+  - id: "A-004"
+    difficulty: 2
+    type: mcq
+    text: "What is the 'plan-execute-evaluate' loop in agentic AI systems?"
+    options:
+      - "A project management methodology"
+      - "An autonomous pattern where the agent plans steps, executes them, evaluates results, and adjusts the plan"
+      - "A way to test prompts in production"
+      - "A three-step prompt template"
+    correct: 1
+    explanation: "The plan-execute-evaluate loop is the core pattern for autonomous agents. The agent creates a plan, executes steps, evaluates outcomes, and dynamically adjusts — enabling complex goal-directed behavior."
+    tags: ["agent-loop", "autonomy"]
+
+  - id: "A-005"
+    difficulty: 3
+    type: mcq
+    text: "You're building an autonomous agent that needs to research a topic, synthesize findings, and write a report. What is the biggest risk and how do you mitigate it?"
+    options:
+      - "Cost — use a cheaper model"
+      - "Compounding errors — each step can amplify mistakes from previous steps. Mitigate with validation checkpoints and human-in-the-loop at critical decisions"
+      - "Speed — parallelize all steps"
+      - "Context limits — use the largest model available"
+    correct: 1
+    explanation: "In multi-step autonomous systems, errors compound. A small mistake in research propagates through synthesis and into the final report. Validation checkpoints and human oversight at key decision points prevent error cascades."
+    tags: ["error-compounding", "human-in-the-loop"]
+
+  - id: "A-006"
+    difficulty: 3
+    type: mcq
+    text: "When should you prefer a prompt chain over a single complex prompt?"
+    options:
+      - "Always — chains are always better"
+      - "When the task has distinct phases that benefit from different instructions, or when intermediate results need validation"
+      - "Only when the single prompt exceeds the context window"
+      - "Never — single prompts are more reliable"
+    correct: 1
+    explanation: "Chains excel when tasks have distinct phases (extract → analyze → format), when intermediate validation is needed, or when different steps require different model configurations. Simple tasks are better served by single prompts."
+    tags: ["chaining", "architecture-decision"]

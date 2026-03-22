@@ -1,0 +1,86 @@
+# Sample KBA Questions — Pillar E (Execution & Iteration)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  pillar: "E"
+  last_updated: "2026-03-22"
+
+questions:
+  - id: "E-001"
+    difficulty: 1
+    type: mcq
+    text: "Your prompt produces an output that is mostly correct but includes an unwanted disclaimer at the end. What is the best first step?"
+    options:
+      - "Rewrite the entire prompt from scratch"
+      - "Add a constraint: 'Do not include any disclaimers'"
+      - "Switch to a different LLM model"
+      - "Increase the temperature setting"
+    correct: 1
+    explanation: "When output is mostly correct with a specific flaw, the most efficient fix is adding a targeted constraint rather than rewriting everything."
+    tags: ["debugging", "iteration"]
+
+  - id: "E-002"
+    difficulty: 1
+    type: mcq
+    text: "What does 'prompt versioning' mean?"
+    options:
+      - "Using different prompts for different LLM versions"
+      - "Keeping track of prompt changes over time to compare results"
+      - "Numbering your prompts sequentially"
+      - "Using version control software for code only"
+    correct: 1
+    explanation: "Prompt versioning means systematically tracking changes to prompts so you can compare outputs, roll back to previous versions, and understand what changes improved or degraded results."
+    tags: ["versioning", "documentation"]
+
+  - id: "E-003"
+    difficulty: 2
+    type: mcq
+    text: "You're A/B testing two prompt variants. Variant A produces better accuracy but Variant B is more consistent across runs. Which metric should you prioritize for a production system?"
+    options:
+      - "Always choose higher accuracy"
+      - "Consistency (lower variance) is more important for production reliability"
+      - "Use whichever is shorter"
+      - "Alternate between both variants randomly"
+    correct: 1
+    explanation: "In production, consistency and predictability are critical. A prompt that produces reliable results is more valuable than one that occasionally produces better but unpredictable outputs."
+    tags: ["a-b-testing", "production"]
+
+  - id: "E-004"
+    difficulty: 2
+    type: mcq
+    text: "Your prompt works well with GPT-4 but produces poor results with Claude. What is the most systematic debugging approach?"
+    options:
+      - "Conclude that Claude is inferior"
+      - "Isolate which part of the prompt fails by testing sections independently"
+      - "Add more examples until it works"
+      - "Rewrite the prompt entirely for Claude"
+    correct: 1
+    explanation: "Systematic debugging means isolating variables. Test the instruction, examples, and constraints separately to identify which component doesn't transfer well between models."
+    tags: ["debugging", "cross-model"]
+
+  - id: "E-005"
+    difficulty: 3
+    type: mcq
+    text: "You notice that your prompt produces correct output 90% of the time but fails on edge cases involving numeric data. What is the most effective refinement strategy?"
+    options:
+      - "Add a generic instruction to 'be careful with numbers'"
+      - "Add few-shot examples specifically covering numeric edge cases and add explicit formatting rules for numbers"
+      - "Increase temperature to explore more solutions"
+      - "Add chain-of-thought for all inputs, not just numeric ones"
+    correct: 1
+    explanation: "Targeted few-shot examples for the specific failure mode (numeric edge cases) combined with explicit formatting rules addresses the root cause without over-engineering the prompt for cases that already work."
+    tags: ["edge-cases", "refinement"]
+
+  - id: "E-006"
+    difficulty: 3
+    type: mcq
+    text: "What is the most reliable way to evaluate whether a prompt improvement actually works?"
+    options:
+      - "Test it once and check if the output looks better"
+      - "Run both versions against a fixed test set of 20+ diverse inputs and compare scores"
+      - "Ask the LLM which prompt is better"
+      - "Use the shorter prompt since it's more efficient"
+    correct: 1
+    explanation: "Reliable evaluation requires a fixed, diverse test set with multiple inputs. Single-example testing is unreliable due to LLM output variance. Systematic comparison reveals true performance differences."
+    tags: ["evaluation", "testing"]

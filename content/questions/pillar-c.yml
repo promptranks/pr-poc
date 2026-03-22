@@ -1,0 +1,86 @@
+# Sample KBA Questions — Pillar C (Context Management)
+# License: CC-BY-SA 4.0
+
+metadata:
+  version: "1.0"
+  pillar: "C"
+  last_updated: "2026-03-22"
+
+questions:
+  - id: "C-001"
+    difficulty: 1
+    type: mcq
+    text: "What is a 'context window' in the context of LLMs?"
+    options:
+      - "The browser window where you chat with the AI"
+      - "The maximum amount of text (tokens) the model can process in a single request"
+      - "A debugging tool for viewing model internals"
+      - "The time window during which a conversation is active"
+    correct: 1
+    explanation: "The context window is the token limit for input + output combined. Exceeding it causes the model to lose information or refuse the request."
+    tags: ["context-window", "fundamentals"]
+
+  - id: "C-002"
+    difficulty: 1
+    type: mcq
+    text: "You need to ask an LLM questions about a 100-page PDF. What is the most practical approach?"
+    options:
+      - "Paste the entire PDF into the prompt"
+      - "Split the document into chunks, retrieve relevant chunks per question, and include them in the prompt"
+      - "Ask the LLM to download and read the PDF"
+      - "Summarize the PDF yourself and paste the summary"
+    correct: 1
+    explanation: "Retrieval-Augmented Generation (RAG) — chunking the document and retrieving relevant sections per query — is the standard approach for handling documents that exceed context limits."
+    tags: ["rag", "chunking"]
+
+  - id: "C-003"
+    difficulty: 2
+    type: mcq
+    text: "In a multi-turn conversation, the model starts 'forgetting' instructions you gave 20 messages ago. What is happening?"
+    options:
+      - "The model has a bug"
+      - "Earlier messages are being pushed out of the context window as new messages are added"
+      - "The model is ignoring you"
+      - "You need to use a different model"
+    correct: 1
+    explanation: "In multi-turn conversations, the full history is sent with each request. As the conversation grows, earlier messages may exceed the context window and get truncated, causing the model to 'forget'."
+    tags: ["multi-turn", "context-window"]
+
+  - id: "C-004"
+    difficulty: 2
+    type: mcq
+    text: "What is the 'lost in the middle' problem in LLMs?"
+    options:
+      - "Models crash when processing middle-length documents"
+      - "Models pay less attention to information in the middle of long contexts compared to the beginning and end"
+      - "The middle part of a prompt is always ignored"
+      - "Models can only process the first and last sentences"
+    correct: 1
+    explanation: "Research shows LLMs attend more strongly to information at the beginning and end of the context. Critical information placed in the middle of long prompts may receive less attention."
+    tags: ["attention", "long-context"]
+
+  - id: "C-005"
+    difficulty: 3
+    type: mcq
+    text: "You're building a RAG system for customer support. Documents are chunked at 500 tokens with 50-token overlap. A user asks a question whose answer spans two chunks. What is the most robust retrieval strategy?"
+    options:
+      - "Return only the top-1 most similar chunk"
+      - "Return top-3 chunks by similarity, then use the LLM to synthesize an answer from all retrieved chunks"
+      - "Increase chunk size to 5000 tokens to avoid splitting"
+      - "Ask the user to be more specific"
+    correct: 1
+    explanation: "Returning multiple relevant chunks and letting the LLM synthesize handles cross-chunk answers. Top-3 retrieval with synthesis is the standard RAG pattern for this scenario."
+    tags: ["rag", "retrieval", "synthesis"]
+
+  - id: "C-006"
+    difficulty: 3
+    type: mcq
+    text: "You need to maintain state across a 50-message conversation without exceeding context limits. Which strategy is most effective?"
+    options:
+      - "Hope the model remembers everything"
+      - "Maintain a running summary that gets updated every 10 messages and prepend it to each new request"
+      - "Start a new conversation every 10 messages"
+      - "Use the largest available model"
+    correct: 1
+    explanation: "A rolling summary (updated periodically and prepended to new requests) preserves key information while keeping context usage bounded. This is the standard pattern for long conversations."
+    tags: ["memory", "summarization", "state"]
