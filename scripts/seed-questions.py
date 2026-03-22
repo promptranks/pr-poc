@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-"""Seed KBA questions and PPA tasks from YAML files into the database."""
+"""Seed KBA questions and PPA tasks from YAML files into the database.
+
+Idempotent: uses external_id for upserts. Safe to run multiple times.
+"""
 
 import os
 import sys
-import yaml
 import asyncio
 from pathlib import Path
 
+import yaml
+
 # Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "apps" / "api"))
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+from app.config import settings
+from app.models import Base
+from app.models.question import Question, Task
 
 
 def load_questions(content_dir: str) -> list[dict]:
@@ -59,11 +70,58 @@ def load_tasks(content_dir: str) -> list[dict]:
     return tasks
 
 
-def main():
-    content_dir = os.environ.get("CONTENT_DIR", "/app/content")
-    if not Path(content_dir).exists():
-        # Local development: scripts/ is one level deep from repo root
+async def upsert_questions(session: AsyncSession, questions: list[dict]) -> int:
+    """Upsert questions by external_id. Returns count of inserted/updated."""
+    count = 0
+    for q_data in questions:
+        result = await session.execute(
+            select(Question).where(Question.external_id == q_data["external_id"])
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            # Update existing
+            for key, value in q_data.items():
+                setattr(existing, key, value)
+        else:
+            # Insert new
+            question = Question(**q_data)
+            session.add(question)
+        count += 1
+
+    await session.commit()
+    return count
+
+
+async def upsert_tasks(session: AsyncSession, tasks: list[dict]) -> int:
+    """Upsert tasks by external_id. Returns count of inserted/updated."""
+    count = 0
+    for t_data in tasks:
+        result = await session.execute(
+            select(Task).where(Task.external_id == t_data["external_id"])
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            for key, value in t_data.items():
+                setattr(existing, key, value)
+        else:
+            task = Task(**t_data)
+            session.add(task)
+        count += 1
+
+    await session.commit()
+    return count
+
+
+async def main():
+    content_dir = os.environ.get("CONTENT_DIR", "")
+    if not content_dir or not Path(content_dir).exists():
         content_dir = str(Path(__file__).resolve().parent.parent / "content")
+
+    if not Path(content_dir).exists():
+        print(f"Content directory not found: {content_dir}")
+        sys.exit(1)
 
     questions = load_questions(content_dir)
     tasks = load_tasks(content_dir)
@@ -77,9 +135,26 @@ def main():
     for t in tasks:
         print(f"  [{'QUICK' if t['is_quick'] else 'FULL'}] {t['external_id']}: {t['title']}")
 
-    # TODO: Insert into database when DB connection is implemented (Step 2)
-    print("\nSeed data validated. Database insertion will be implemented in Step 2.")
+    # Connect to database
+    db_url = settings.database_url
+    print(f"\nConnecting to database: {db_url.split('@')[-1] if '@' in db_url else 'local'}...")
+
+    engine = create_async_engine(db_url, echo=False)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with async_session() as session:
+        q_count = await upsert_questions(session, questions)
+        t_count = await upsert_tasks(session, tasks)
+
+    await engine.dispose()
+
+    print(f"\nSeeded {q_count} questions and {t_count} tasks into database.")
+    print("Done.")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

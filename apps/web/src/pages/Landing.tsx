@@ -1,30 +1,329 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+const INDUSTRIES = [
+  'Technology', 'Finance', 'Healthcare', 'Education', 'Marketing',
+  'Legal', 'Manufacturing', 'Consulting', 'Government', 'Other',
+]
+
+const ROLES = [
+  'Software Engineer', 'Product Manager', 'Data Scientist', 'Designer',
+  'Marketing Manager', 'Business Analyst', 'Executive', 'Student',
+  'Researcher', 'Freelancer', 'Other',
+]
+
+const PILLARS = [
+  { letter: 'P', name: 'Prompt Design', desc: 'Crafting effective prompts' },
+  { letter: 'E', name: 'Evaluation', desc: 'Judging output quality' },
+  { letter: 'C', name: 'Context Management', desc: 'Managing context windows' },
+  { letter: 'M', name: 'Meta-Cognition', desc: 'Understanding AI limits' },
+  { letter: 'A', name: 'Agentic Prompting', desc: 'Multi-step workflows' },
+]
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: '#000000',
+    color: '#c0ffc0',
+    fontFamily: "'Share Tech Mono', monospace",
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+  },
+  container: {
+    maxWidth: 800,
+    width: '100%',
+    padding: '3rem 2rem',
+    textAlign: 'center' as const,
+  },
+  heading: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '1.6rem',
+    color: '#00ff41',
+    marginBottom: '0.5rem',
+    textShadow: '0 0 20px rgba(0,255,65,0.4)',
+  },
+  subheading: {
+    fontSize: '1.1rem',
+    color: '#008f11',
+    marginBottom: '2.5rem',
+    lineHeight: 1.6,
+  },
+  buttonRow: {
+    display: 'flex',
+    gap: '1rem',
+    justifyContent: 'center',
+    flexWrap: 'wrap' as const,
+    marginBottom: '2rem',
+  },
+  ctaButton: {
+    padding: '16px 36px',
+    borderRadius: 4,
+    border: 'none',
+    background: 'linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 40%, #EC41FB 100%)',
+    color: '#fff',
+    fontSize: '1rem',
+    fontFamily: "'Share Tech Mono', monospace",
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    boxShadow: '0 0 20px rgba(109,95,250,0.3)',
+  },
+  secondaryButton: {
+    padding: '16px 36px',
+    borderRadius: 4,
+    border: '1px solid rgba(0,255,65,0.2)',
+    background: 'rgba(0,15,0,0.6)',
+    color: '#00ff41',
+    fontSize: '1rem',
+    fontFamily: "'Share Tech Mono', monospace",
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  disabledButton: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  dropdownRow: {
+    display: 'flex',
+    gap: '1rem',
+    justifyContent: 'center',
+    flexWrap: 'wrap' as const,
+    marginBottom: '2.5rem',
+  },
+  select: {
+    padding: '10px 16px',
+    borderRadius: 4,
+    border: '1px solid rgba(0,255,65,0.2)',
+    background: 'rgba(0,15,0,0.6)',
+    color: '#c0ffc0',
+    fontSize: '0.9rem',
+    fontFamily: "'Share Tech Mono', monospace",
+    cursor: 'pointer',
+    minWidth: 200,
+    appearance: 'none' as const,
+  },
+  section: {
+    marginTop: '3rem',
+    padding: '2rem',
+    border: '1px solid rgba(0,255,65,0.1)',
+    borderRadius: 8,
+    background: 'rgba(0,15,0,0.6)',
+  },
+  sectionTitle: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.75rem',
+    color: '#00ff41',
+    marginBottom: '1.5rem',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '2px',
+  },
+  pillarGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+    gap: '1rem',
+  },
+  pillarCard: {
+    padding: '1rem',
+    border: '1px solid rgba(0,255,65,0.15)',
+    borderRadius: 4,
+    background: 'rgba(0,15,0,0.4)',
+    textAlign: 'center' as const,
+  },
+  pillarLetter: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '1.2rem',
+    color: '#00ff41',
+    textShadow: '0 0 10px rgba(0,255,65,0.4)',
+    marginBottom: '0.5rem',
+  },
+  pillarName: {
+    fontSize: '0.85rem',
+    color: '#c0ffc0',
+    marginBottom: '0.3rem',
+  },
+  pillarDesc: {
+    fontSize: '0.75rem',
+    color: '#008f11',
+  },
+  stepsRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '2rem',
+    flexWrap: 'wrap' as const,
+    marginTop: '1rem',
+  },
+  step: {
+    textAlign: 'center' as const,
+    maxWidth: 160,
+  },
+  stepNumber: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '1.5rem',
+    color: '#6D5FFA',
+    marginBottom: '0.5rem',
+  },
+  stepLabel: {
+    fontSize: '0.9rem',
+    color: '#c0ffc0',
+  },
+  footer: {
+    marginTop: '3rem',
+    paddingTop: '1.5rem',
+    borderTop: '1px solid rgba(0,255,65,0.1)',
+    fontSize: '0.8rem',
+    color: '#008f11',
+  },
+  error: {
+    color: '#ff4444',
+    fontSize: '0.9rem',
+    marginBottom: '1rem',
+  },
+}
+
 export default function Landing() {
+  const navigate = useNavigate()
+  const [industry, setIndustry] = useState('')
+  const [role, setRole] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const startAssessment = async (mode: 'quick' | 'full') => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/assessments/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode,
+          industry: industry || null,
+          role: role || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.detail || 'Failed to start assessment')
+      }
+
+      const data = await res.json()
+      // Store assessment data in sessionStorage for the assessment page
+      sessionStorage.setItem('assessment', JSON.stringify(data))
+      navigate(`/assessment/${data.assessment_id}`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to start assessment'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0B0D1A', color: '#F1F5F9', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', maxWidth: 600, padding: '2rem' }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '1rem' }}>
-          <span style={{ background: 'linear-gradient(135deg, #A78BFA, #60A5FA, #EC41FB)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            PromptRanks
-          </span>
-        </h1>
-        <p style={{ fontSize: '1.2rem', color: '#94A3B8', marginBottom: '2rem', lineHeight: 1.7 }}>
-          Measure your AI prompting skill. Get a verifiable badge. Share it with the world.
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <h1 style={styles.heading}>PromptRanks</h1>
+        <p style={styles.subheading}>
+          Measure your AI prompting skill in 15 minutes.<br />
+          Get scored. Get a badge. Share it with the world.
         </p>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button
-            style={{ padding: '14px 32px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6D5FFA, #8B5CF6, #EC41FB)', color: '#fff', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+
+        {error && <p style={styles.error}>{error}</p>}
+
+        <div style={styles.dropdownRow}>
+          <select
+            style={styles.select}
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
           >
-            Quick Assessment (15 min)
+            <option value="">Industry (optional)</option>
+            {INDUSTRIES.map((i) => (
+              <option key={i} value={i}>{i}</option>
+            ))}
+          </select>
+          <select
+            style={styles.select}
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">Role (optional)</option>
+            {ROLES.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={styles.buttonRow}>
+          <button
+            style={{
+              ...styles.ctaButton,
+              ...(loading ? styles.disabledButton : {}),
+            }}
+            onClick={() => startAssessment('quick')}
+            disabled={loading}
+          >
+            {loading ? '[ INITIALIZING... ]' : 'Quick Assessment (15 min)'}
           </button>
           <button
-            style={{ padding: '14px 32px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#94A3B8', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}
+            style={{
+              ...styles.secondaryButton,
+              ...(loading ? styles.disabledButton : {}),
+            }}
+            onClick={() => startAssessment('full')}
+            disabled={loading}
           >
-            Full Assessment (~60 min)
+            {loading ? '[ INITIALIZING... ]' : 'Full Assessment (~60 min)'}
           </button>
         </div>
-        <p style={{ marginTop: '2rem', fontSize: '0.85rem', color: '#475569' }}>
-          Powered by the PECAM Framework — Open Source
-        </p>
+
+        {/* PECAM Framework */}
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>The PECAM Framework</h2>
+          <div style={styles.pillarGrid}>
+            {PILLARS.map((p) => (
+              <div key={p.letter} style={styles.pillarCard}>
+                <div style={styles.pillarLetter}>{p.letter}</div>
+                <div style={styles.pillarName}>{p.name}</div>
+                <div style={styles.pillarDesc}>{p.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>How It Works</h2>
+          <div style={styles.stepsRow}>
+            <div style={styles.step}>
+              <div style={styles.stepNumber}>01</div>
+              <div style={styles.stepLabel}>Assess</div>
+              <div style={{ ...styles.pillarDesc, marginTop: '0.3rem' }}>
+                Answer KBA questions + write prompts
+              </div>
+            </div>
+            <div style={styles.step}>
+              <div style={styles.stepNumber}>02</div>
+              <div style={styles.stepLabel}>Score</div>
+              <div style={{ ...styles.pillarDesc, marginTop: '0.3rem' }}>
+                AI judges your prompting skill
+              </div>
+            </div>
+            <div style={styles.step}>
+              <div style={styles.stepNumber}>03</div>
+              <div style={styles.stepLabel}>Share</div>
+              <div style={{ ...styles.pillarDesc, marginTop: '0.3rem' }}>
+                Earn a verifiable badge
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.footer}>
+          Powered by the PECAM Framework &mdash; Open Source (MIT + CC-BY-SA 4.0)
+        </div>
       </div>
     </div>
   )
