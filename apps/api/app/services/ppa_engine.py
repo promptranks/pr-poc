@@ -98,7 +98,7 @@ def get_attempt_count(ppa_responses: dict | None, task_id: str) -> int:
 def get_max_attempts(task: Task, mode: str) -> int:
     """Get max attempts for a task based on assessment mode."""
     if mode == "quick":
-        return min(task.max_attempts or QUICK_MAX_ATTEMPTS, QUICK_MAX_ATTEMPTS)
+        return min(int(task.max_attempts or QUICK_MAX_ATTEMPTS), QUICK_MAX_ATTEMPTS)
     return task.max_attempts or FULL_MAX_ATTEMPTS
 
 
@@ -176,7 +176,7 @@ async def judge_task_output(
         "creativity": {"weight": 0.10, "description": "Creative use of prompting techniques"},
     }
 
-    success_criteria = task.success_criteria or []
+    success_criteria: list[str] = task.success_criteria or []
 
     return await judge_output(
         user_prompt=user_prompt,

@@ -54,7 +54,7 @@ async def execute_prompt(prompt: str, task_input: str, model: str | None = None)
             }
         ],
     )
-    return message.content[0].text
+    return message.content[0].text  # type: ignore[union-attr]
 
 
 async def judge_output(
@@ -143,7 +143,7 @@ Return ONLY a JSON object with this exact structure (no markdown, no explanation
         ],
     )
 
-    raw_text = message.content[0].text.strip()
+    raw_text = message.content[0].text.strip()  # type: ignore[union-attr]
 
     # Parse JSON — handle possible markdown code fences
     if raw_text.startswith("```"):

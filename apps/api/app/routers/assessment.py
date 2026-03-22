@@ -282,7 +282,7 @@ async def get_ppa_tasks(
         raise HTTPException(status_code=400, detail="KBA must be completed before PPA")
 
     # Check if tasks already assigned
-    ppa = assessment.ppa_responses or {}
+    ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
 
     if not task_ids_str:
@@ -322,7 +322,7 @@ async def execute_ppa(
         raise HTTPException(status_code=400, detail="KBA must be completed before PPA")
 
     # Validate task is assigned to this assessment
-    ppa = assessment.ppa_responses or {}
+    ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
     if body.task_id not in task_ids_str:
         raise HTTPException(status_code=400, detail="Task not assigned to this assessment")
@@ -385,7 +385,7 @@ async def submit_best_attempt(
     """Submit best attempt for judging. Returns 5-dimension scores."""
     assessment = await _load_assessment(db, assessment_id)
 
-    ppa = assessment.ppa_responses or {}
+    ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
     if body.task_id not in task_ids_str:
         raise HTTPException(status_code=400, detail="Task not assigned to this assessment")
