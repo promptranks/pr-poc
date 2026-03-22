@@ -252,7 +252,7 @@ const styles = {
   },
 }
 
-export default function PPA({ assessmentId, mode, onComplete }: PPAProps) {
+export default function PPA({ assessmentId, mode: _mode, onComplete }: PPAProps) {
   const [tasks, setTasks] = useState<TaskBrief[]>([])
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0)
   const [loading, setLoading] = useState(true)

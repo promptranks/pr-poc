@@ -6,7 +6,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.assessment import Assessment
 from app.models.question import Task
 from app.services.llm_client import execute_prompt, judge_output
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # LLM
     anthropic_api_key: str = ""
+    llm_base_url: str | None = None  # Proxy URL (e.g., https://terminal.pub)
     llm_executor_model: str = "claude-sonnet-4-6"
     llm_judge_model: str = "claude-opus-4-6"
     llm_max_tokens: int = 4096
