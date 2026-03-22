@@ -53,6 +53,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build API image
-        run: docker build -t pr-poc-api ./apps/api
+        run: docker build -t prk-poc-api ./apps/api
       - name: Build Web image
-        run: docker build -t pr-poc-web ./apps/web
+        run: docker build -t prk-poc-web ./apps/web

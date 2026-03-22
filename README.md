@@ -6,7 +6,7 @@ Measure your AI prompting skill in 15 minutes. Get a verifiable badge. Share it 
 
 [![License: MIT](https://img.shields.io/badge/Code-MIT-blue.svg)](LICENSE)
 [![License: CC BY-SA 4.0](https://img.shields.io/badge/Content-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE-CONTENT)
-[![CI](https://github.com/promptranks/pr-poc/actions/workflows/ci.yml/badge.svg)](https://github.com/promptranks/pr-poc/actions)
+[![CI](https://github.com/promptranks/prk-poc/actions/workflows/ci.yml/badge.svg)](https://github.com/promptranks/prk-poc/actions)
 
 ---
 
@@ -53,8 +53,8 @@ PromptRanks assesses your AI prompting ability using the **PECAM framework** —
 
 ```bash
 # Clone
-git clone https://github.com/promptranks/pr-poc.git
-cd pr-poc
+git clone https://github.com/promptranks/prk-poc.git
+cd prk-poc
 
 # Configure
 cp .env.example .env
@@ -108,7 +108,7 @@ npm run dev
 ## Project Structure
 
 ```
-pr-poc/
+prk-poc/
 ├── apps/
 │   ├── api/          # FastAPI backend
 │   └── web/          # React frontend

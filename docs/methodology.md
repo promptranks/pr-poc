@@ -1,6 +1,6 @@
 # PECAM Methodology
 
-For the complete PECAM methodology, see the [full document](https://github.com/promptranks/pr-poc/blob/main/../../PromptRanks_Methodology.md) or read below.
+For the complete PECAM methodology, see the [full document](https://github.com/promptranks/prk-poc/blob/main/../../PromptRanks_Methodology.md) or read below.
 
 ## Overview
 

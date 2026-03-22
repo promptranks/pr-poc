@@ -19,8 +19,8 @@ Thank you for your interest in contributing! This guide will help you get starte
 ```bash
 # 1. Fork the repo on GitHub
 # 2. Clone your fork
-git clone https://github.com/YOUR_USERNAME/pr-poc.git
-cd pr-poc
+git clone https://github.com/YOUR_USERNAME/prk-poc.git
+cd prk-poc
 
 # 3. Configure
 cp .env.example .env

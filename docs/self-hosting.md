@@ -9,8 +9,8 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/promptranks/pr-poc.git
-cd pr-poc
+git clone https://github.com/promptranks/prk-poc.git
+cd prk-poc
 cp .env.example .env
 ```
 
@@ -50,7 +50,7 @@ See [.env.example](../.env.example) for all available configuration options.
 
 ## Data Persistence
 
-PostgreSQL data is stored in a Docker volume (`pr-poc-pgdata`). To back up:
+PostgreSQL data is stored in a Docker volume (`prk-poc-pgdata`). To back up:
 
 ```bash
 docker compose exec postgres pg_dump -U promptranks promptranks > backup.sql
