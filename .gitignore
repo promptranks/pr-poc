@@ -39,3 +39,4 @@ coverage/
 
 # Build artifacts
 apps/web/dist/
+.sprint/
