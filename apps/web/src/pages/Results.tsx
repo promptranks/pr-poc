@@ -1,5 +1,6 @@
 /**
  * Results page: displays final score, level badge, PECAM radar chart, pillar breakdown.
+ * Includes claim form (register/login) to generate badge.
  * Matrix green theme with glow animations.
  */
 
@@ -25,6 +26,14 @@ interface ResultsData {
   psv_score: number | null
   pillar_scores: Record<string, PillarData>
   completed_at: string
+}
+
+interface ClaimData {
+  badge_id: string
+  badge_svg: string
+  verification_url: string
+  token: string
+  user_id: string
 }
 
 interface ResultsProps {
@@ -181,6 +190,87 @@ const styles = {
     letterSpacing: '3px',
     marginBottom: '0.3rem',
   },
+  // Claim form styles
+  claimSection: {
+    padding: '2rem',
+    border: '1px solid rgba(0,255,65,0.2)',
+    borderRadius: 8,
+    background: 'rgba(0,15,0,0.6)',
+    marginTop: '2rem',
+  },
+  claimTitle: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.7rem',
+    color: '#00ff41',
+    textAlign: 'center' as const,
+    marginBottom: '1.5rem',
+    textShadow: '0 0 10px rgba(0,255,65,0.3)',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 14px',
+    border: '1px solid rgba(0,255,65,0.2)',
+    borderRadius: 4,
+    background: 'rgba(0,15,0,0.8)',
+    color: '#c0ffc0',
+    fontFamily: "'Share Tech Mono', monospace",
+    fontSize: '0.9rem',
+    marginBottom: '0.75rem',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  },
+  claimButton: {
+    width: '100%',
+    padding: '12px',
+    borderRadius: 4,
+    border: 'none',
+    background: 'linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 40%, #EC41FB 100%)',
+    color: '#ffffff',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.6rem',
+    cursor: 'pointer',
+    letterSpacing: '1px',
+    marginTop: '0.5rem',
+  },
+  toggleLink: {
+    display: 'block',
+    textAlign: 'center' as const,
+    color: '#008f11',
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+    marginTop: '1rem',
+    textDecoration: 'underline',
+    background: 'none',
+    border: 'none',
+    fontFamily: "'Share Tech Mono', monospace",
+  },
+  claimError: {
+    color: '#ff4444',
+    fontSize: '0.8rem',
+    textAlign: 'center' as const,
+    marginTop: '0.5rem',
+  },
+  claimSuccess: {
+    textAlign: 'center' as const,
+    padding: '2rem',
+    border: '1px solid rgba(0,255,65,0.3)',
+    borderRadius: 8,
+    background: 'rgba(0,15,0,0.6)',
+    marginTop: '2rem',
+  },
+  badgeLink: {
+    display: 'inline-block',
+    padding: '10px 24px',
+    borderRadius: 4,
+    background: 'linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 40%, #EC41FB 100%)',
+    color: '#ffffff',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.55rem',
+    textDecoration: 'none',
+    letterSpacing: '1px',
+    marginTop: '1rem',
+    cursor: 'pointer',
+  },
 }
 
 export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
@@ -188,6 +278,15 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [scoreAnimated, setScoreAnimated] = useState(0)
+
+  // Claim form state
+  const [isLogin, setIsLogin] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [claiming, setClaiming] = useState(false)
+  const [claimError, setClaimError] = useState<string | null>(null)
+  const [claimData, setClaimData] = useState<ClaimData | null>(null)
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -222,6 +321,38 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
     }
     fetchResults()
   }, [assessmentId])
+
+  const handleClaim = async () => {
+    setClaiming(true)
+    setClaimError(null)
+
+    try {
+      const res = await fetch(`${API_URL}/assessments/${assessmentId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          name: name || email.split('@')[0],
+          is_login: isLogin,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.detail || 'Claim failed')
+      }
+
+      const data: ClaimData = await res.json()
+      setClaimData(data)
+      // Store token for future use
+      sessionStorage.setItem('auth_token', data.token)
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setClaiming(false)
+    }
+  }
 
   if (loading) {
     return <div style={styles.loading}>[ COMPUTING RESULTS... ]</div>
@@ -298,9 +429,68 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
         ))}
       </div>
 
-      <div style={{ textAlign: 'center', color: '#008f11', fontSize: '0.8rem', marginTop: '2rem' }}>
-        Badge claim coming in Sprint 4...
-      </div>
+      {/* Claim Section */}
+      {claimData ? (
+        <div style={styles.claimSuccess}>
+          <div style={styles.sectionTitle}>Badge Claimed!</div>
+          <div
+            dangerouslySetInnerHTML={{ __html: claimData.badge_svg }}
+            style={{ margin: '1rem auto', maxWidth: 400 }}
+          />
+          <a
+            href={`/badge/${claimData.badge_id}`}
+            style={styles.badgeLink}
+          >
+            View Badge
+          </a>
+        </div>
+      ) : (
+        <div style={styles.claimSection}>
+          <div style={styles.claimTitle}>
+            {isLogin ? 'LOGIN TO CLAIM' : 'REGISTER TO CLAIM'}
+          </div>
+          {!isLogin && (
+            <input
+              type="text"
+              placeholder="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={styles.input}
+            />
+          )}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={styles.input}
+          />
+          <input
+            type="password"
+            placeholder="Password (min 8 chars)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={styles.input}
+          />
+          <button
+            onClick={handleClaim}
+            disabled={claiming || !email || !password}
+            style={{
+              ...styles.claimButton,
+              opacity: claiming || !email || !password ? 0.5 : 1,
+            }}
+          >
+            {claiming ? '[ CLAIMING... ]' : isLogin ? '[ LOGIN & CLAIM ]' : '[ REGISTER & CLAIM ]'}
+          </button>
+          {claimError && <div style={styles.claimError}>{claimError}</div>}
+          <button
+            onClick={() => { setIsLogin(!isLogin); setClaimError(null) }}
+            style={styles.toggleLink}
+          >
+            {isLogin ? 'Need an account? Register' : 'Already have an account? Login'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

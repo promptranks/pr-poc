@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.config import settings
 from app.database import get_db
 from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
+from app.models.badge import Badge
 from app.models.question import Question, Task
 from app.services.kba_engine import (
     check_timer_expired,
@@ -31,6 +32,13 @@ from app.services.ppa_engine import (
     store_attempt,
 )
 from app.services.psv_engine import compute_psv_score, judge_psv_submission
+from app.services.auth_service import (
+    create_access_token,
+    create_user,
+    get_user_by_email,
+    verify_password,
+)
+from app.services.badge_service import create_badge
 from app.services.scoring import aggregate_pillar_scores, assign_level, compute_final_score
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
@@ -147,6 +155,21 @@ class ResultsResponse(BaseModel):
     psv_score: float | None
     pillar_scores: dict[str, dict[str, float]]
     completed_at: str
+
+
+class ClaimRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+    is_login: bool = False  # True = login existing user, False = register new
+
+
+class ClaimResponse(BaseModel):
+    badge_id: str
+    badge_svg: str
+    verification_url: str
+    token: str
+    user_id: str
 
 
 # --- Endpoints ---
@@ -681,6 +704,68 @@ async def get_results(
     await db.commit()
 
     return _build_results_response(assessment)
+
+
+@router.post("/{assessment_id}/claim", response_model=ClaimResponse)
+async def claim_assessment(
+    assessment_id: str,
+    body: ClaimRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ClaimResponse:
+    """Claim a completed assessment: register or login, link to user, generate badge."""
+    # Load assessment
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if assessment.status != AssessmentStatus.completed:
+        raise HTTPException(status_code=400, detail="Assessment is not completed")
+
+    # Check if already claimed (badge exists for this assessment)
+    existing_badge = await db.execute(select(Badge).where(Badge.assessment_id == aid))
+    if existing_badge.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="Assessment already claimed")
+
+    # Authenticate or register user
+    if body.is_login:
+        user = await get_user_by_email(db, body.email)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+    else:
+        # Register new user
+        existing = await get_user_by_email(db, body.email)
+        if existing is not None:
+            raise HTTPException(status_code=409, detail="Email already registered. Use is_login=true to login.")
+        if len(body.password) < 8:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+        name = body.name if body.name else body.email.split("@")[0]
+        user = await create_user(db, body.email, name, body.password)
+
+    # Link assessment to user
+    assessment.user_id = user.id
+    await db.commit()
+
+    # Generate badge
+    badge = await create_badge(db, user, assessment)
+
+    # Create token
+    token = create_access_token(user.id, user.email)
+
+    return ClaimResponse(
+        badge_id=str(badge.id),
+        badge_svg=badge.badge_svg or "",
+        verification_url=badge.verification_url or "",
+        token=token,
+        user_id=str(user.id),
+    )
 
 
 def _build_results_response(assessment: Assessment) -> ResultsResponse:

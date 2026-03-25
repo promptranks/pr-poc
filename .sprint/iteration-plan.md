@@ -12,7 +12,7 @@
 | 1 | Assessment Session + KBA Engine | User can start assessment and complete KBA questions | CRITICAL | Sprint 0 | Completed |
 | 2 | PPA Engine | User can write prompts, execute them, get LLM-judged | CRITICAL | Sprint 1 | Completed |
 | 3 | Scoring + Results + Anti-Cheat | Final score, level, results page, tab-lock | HIGH | Sprint 2 | Completed |
-| 4 | Auth + Badge Claim | Register at claim time, badge generation, verification | HIGH | Sprint 3 | Pending |
+| 4 | Auth + Badge Claim | Register at claim time, badge generation, verification | HIGH | Sprint 3 | Completed |
 | 5 | Polish + Release v0.1.0 | UX polish, error handling, rate limiting, release | MEDIUM | Sprint 4 | Pending |
 
 ---
@@ -171,15 +171,17 @@
 | S4-T10 | Unit tests: register, login, claim, verify, duplicate claim | `apps/api/tests/test_auth.py`, `apps/api/tests/test_badge.py` | Section 6 Sprint 4 | CRITICAL |
 
 #### Acceptance Criteria
-- [ ] Complete assessment → click Claim → register → badge issued
-- [ ] Badge SVG contains: level, score, radar chart, date, "Estimated"/"Certified"
-- [ ] `GET /badges/verify/{id}` returns badge data (public, no auth)
-- [ ] Already registered user can login and claim
-- [ ] Can't claim same assessment twice (409 error)
-- [ ] Passwords hashed with bcrypt
-- [ ] JWT tokens work for protected endpoints
-- [ ] All unit tests pass
-- [ ] CI green
+- [x] Complete assessment → click Claim → register → badge issued
+- [x] Badge SVG contains: level, score, radar chart, date, "Estimated"/"Certified"
+- [x] `GET /badges/verify/{id}` returns badge data (public, no auth)
+- [x] Already registered user can login and claim
+- [x] Can't claim same assessment twice (409 error)
+- [x] Passwords hashed with bcrypt
+- [x] JWT tokens work for protected endpoints
+- [x] All unit tests pass
+- [x] CI green
+
+#### Status: COMPLETED (2026-03-25)
 
 ---
 
