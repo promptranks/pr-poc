@@ -160,7 +160,7 @@ export default function Assessment() {
   const [data, setData] = useState<AssessmentData | null>(null)
   const [phase, setPhase] = useState<Phase>('kba')
   const [expired, setExpired] = useState(false)
-  const [kbaResult, setKbaResult] = useState<KBAResult | null>(null)
+  const [_kbaResult, setKbaResult] = useState<KBAResult | null>(null)
 
   const { violations, isVoided, showWarning, dismissWarning } = useAntiCheat({
     assessmentId: id || '',

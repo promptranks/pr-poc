@@ -23,7 +23,7 @@ interface UseAntiCheatReturn {
 export default function useAntiCheat({
   assessmentId,
   enabled = true,
-  maxViolations = 3,
+  maxViolations: _maxViolations = 3,
 }: UseAntiCheatOptions): UseAntiCheatReturn {
   const [violations, setViolations] = useState(0)
   const [isVoided, setIsVoided] = useState(false)

@@ -183,7 +183,7 @@ const styles = {
   },
 }
 
-export default function Results({ assessmentId, mode }: ResultsProps) {
+export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   const [results, setResults] = useState<ResultsData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
