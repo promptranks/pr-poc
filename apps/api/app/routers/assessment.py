@@ -1,4 +1,4 @@
-"""Assessment router: start, KBA submit, PPA execute, PSV submit, results."""
+"""Assessment router: start, KBA submit, PPA execute, PSV submit, results, violations."""
 
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -30,6 +30,8 @@ from app.services.ppa_engine import (
     select_tasks,
     store_attempt,
 )
+from app.services.psv_engine import compute_psv_score, judge_psv_submission
+from app.services.scoring import aggregate_pillar_scores, assign_level, compute_final_score
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -112,6 +114,39 @@ class PPASubmitBestResponse(BaseModel):
 
 class PPATasksResponse(BaseModel):
     tasks: list[dict[str, Any]]
+
+
+class PSVSubmitRequest(BaseModel):
+    submission_text: str
+    submission_url: str | None = None
+
+
+class PSVSubmitResponse(BaseModel):
+    psv_score: float
+    dimensions: dict[str, DimensionScore]
+
+
+class ViolationRequest(BaseModel):
+    violation_type: str  # "tab_switch", "copy_paste", etc.
+
+
+class ViolationResponse(BaseModel):
+    violations: int
+    voided: bool
+    message: str
+
+
+class ResultsResponse(BaseModel):
+    assessment_id: str
+    mode: str
+    status: str
+    final_score: float
+    level: int
+    kba_score: float
+    ppa_score: float
+    psv_score: float | None
+    pillar_scores: dict[str, dict[str, float]]
+    completed_at: str
 
 
 # --- Endpoints ---
@@ -468,13 +503,201 @@ async def submit_best_attempt(
     )
 
 
-@router.post("/{assessment_id}/psv/submit")
-async def submit_psv(assessment_id: str):
-    """Submit PSV portfolio entry."""
-    return {"message": "not implemented"}
+@router.post("/{assessment_id}/psv/submit", response_model=PSVSubmitResponse)
+async def submit_psv(
+    assessment_id: str,
+    body: PSVSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit PSV portfolio entry (full mode only). LLM judges the submission."""
+    assessment = await _load_assessment(db, assessment_id)
+
+    # PSV is full mode only
+    if assessment.mode != AssessmentMode.full:
+        raise HTTPException(status_code=400, detail="PSV is only available in full assessment mode")
+
+    # Must have completed KBA and PPA
+    if assessment.kba_score is None:
+        raise HTTPException(status_code=400, detail="KBA must be completed before PSV")
+    if assessment.ppa_score is None:
+        raise HTTPException(status_code=400, detail="PPA must be completed before PSV")
+
+    # Check not already submitted
+    if assessment.psv_score is not None:
+        raise HTTPException(status_code=400, detail="PSV already submitted")
+
+    # Judge via LLM
+    try:
+        judge_result = await judge_psv_submission(
+            submission_text=body.submission_text,
+            submission_url=body.submission_url,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM judging failed: {str(e)}")
+
+    psv_score = compute_psv_score(judge_result)
+
+    # Store results
+    assessment.psv_score = psv_score
+    assessment.psv_submission = {
+        "submission_text": body.submission_text,
+        "submission_url": body.submission_url,
+        "judge_result": judge_result,
+    }
+    flag_modified(assessment, "psv_submission")
+    await db.commit()
+
+    return PSVSubmitResponse(
+        psv_score=psv_score,
+        dimensions={
+            dim: DimensionScore(
+                score=data["score"],
+                rationale=data.get("rationale", ""),
+            )
+            for dim, data in judge_result.items()
+        },
+    )
 
 
-@router.get("/{assessment_id}/results")
-async def get_results(assessment_id: str):
-    """Get assessment results and badge."""
-    return {"message": "not implemented"}
+# --- Anti-cheat ---
+
+
+@router.post("/{assessment_id}/violation", response_model=ViolationResponse)
+async def report_violation(
+    assessment_id: str,
+    body: ViolationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Report an anti-cheat violation. 3 violations = session voided."""
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if assessment.status == AssessmentStatus.voided:
+        return ViolationResponse(
+            violations=assessment.violations or 0,
+            voided=True,
+            message="Assessment already voided",
+        )
+    if assessment.status in (AssessmentStatus.completed, AssessmentStatus.expired):
+        raise HTTPException(status_code=400, detail="Assessment is no longer active")
+
+    # Increment violations
+    current_violations = (assessment.violations or 0) + 1
+    assessment.violations = current_violations
+
+    # Append to violation log
+    log: list[dict[str, str]] = list(assessment.violation_log or [])
+    log.append({
+        "type": body.violation_type,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    assessment.violation_log = log
+    flag_modified(assessment, "violation_log")
+
+    voided = current_violations >= 3
+    if voided:
+        assessment.status = AssessmentStatus.voided
+
+    await db.commit()
+
+    return ViolationResponse(
+        violations=current_violations,
+        voided=voided,
+        message="Assessment voided due to excessive violations" if voided else f"Warning {current_violations}/3",
+    )
+
+
+# --- Results ---
+
+
+@router.get("/{assessment_id}/results", response_model=ResultsResponse)
+async def get_results(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get assessment results. Computes final score and marks as completed on first call."""
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if assessment.status == AssessmentStatus.voided:
+        raise HTTPException(status_code=400, detail="Assessment has been voided")
+    if assessment.status == AssessmentStatus.expired:
+        raise HTTPException(status_code=400, detail="Assessment has expired")
+
+    # If already completed, return cached results
+    if assessment.status == AssessmentStatus.completed and assessment.final_score is not None:
+        return _build_results_response(assessment)
+
+    # Validate required scores exist
+    if assessment.kba_score is None:
+        raise HTTPException(status_code=400, detail="KBA not completed")
+    if assessment.ppa_score is None:
+        raise HTTPException(status_code=400, detail="PPA not completed")
+
+    # For full mode, PSV is required
+    mode_str = assessment.mode.value if isinstance(assessment.mode, AssessmentMode) else str(assessment.mode)
+    if mode_str == "full" and assessment.psv_score is None:
+        raise HTTPException(status_code=400, detail="PSV not completed (required for full mode)")
+
+    # Compute final score
+    final = compute_final_score(
+        mode=mode_str,
+        kba_score=assessment.kba_score,
+        ppa_score=assessment.ppa_score,
+        psv_score=assessment.psv_score,
+    )
+
+    # Assign level
+    level = assign_level(final)
+
+    # Aggregate pillar scores
+    pillar_agg = aggregate_pillar_scores(
+        kba_pillar_scores=assessment.pillar_scores,
+        ppa_responses=assessment.ppa_responses,
+    )
+
+    # Update assessment
+    now = datetime.now(timezone.utc)
+    assessment.final_score = final
+    assessment.level = level
+    assessment.pillar_scores = pillar_agg
+    assessment.status = AssessmentStatus.completed
+    assessment.completed_at = now
+    flag_modified(assessment, "pillar_scores")
+    await db.commit()
+
+    return _build_results_response(assessment)
+
+
+def _build_results_response(assessment: Assessment) -> ResultsResponse:
+    """Build ResultsResponse from a completed assessment."""
+    mode_str = assessment.mode.value if isinstance(assessment.mode, AssessmentMode) else str(assessment.mode)
+    status_str = assessment.status.value if isinstance(assessment.status, AssessmentStatus) else str(assessment.status)
+    completed_at_str = assessment.completed_at.isoformat() if assessment.completed_at else datetime.now(timezone.utc).isoformat()
+
+    return ResultsResponse(
+        assessment_id=str(assessment.id),
+        mode=mode_str,
+        status=status_str,
+        final_score=assessment.final_score or 0.0,
+        level=assessment.level or 1,
+        kba_score=assessment.kba_score or 0.0,
+        ppa_score=assessment.ppa_score or 0.0,
+        psv_score=assessment.psv_score,
+        pillar_scores=assessment.pillar_scores or {},
+        completed_at=completed_at_str,
+    )

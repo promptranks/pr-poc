@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Timer from '../components/Timer'
+import TabLock from '../components/TabLock'
+import useAntiCheat from '../hooks/useAntiCheat'
 import KBA from './KBA'
 import type { KBAResult } from './KBA'
 import PPA from './PPA'
+import Results from './Results'
 
 interface AssessmentData {
   assessment_id: string
@@ -159,6 +162,11 @@ export default function Assessment() {
   const [expired, setExpired] = useState(false)
   const [kbaResult, setKbaResult] = useState<KBAResult | null>(null)
 
+  const { violations, isVoided, showWarning, dismissWarning } = useAntiCheat({
+    assessmentId: id || '',
+    enabled: phase !== 'results' && !!id,
+  })
+
   useEffect(() => {
     // Load assessment data from sessionStorage
     const stored = sessionStorage.getItem('assessment')
@@ -206,10 +214,19 @@ export default function Assessment() {
 
   return (
     <div style={styles.page}>
+      <TabLock
+        visible={showWarning}
+        violations={violations}
+        isVoided={isVoided}
+        onDismiss={dismissWarning}
+      />
+
       <div style={styles.header}>
         <span style={styles.logo}>PROMPTRANKS</span>
         <span style={styles.mode}>{data.mode} assessment</span>
-        <Timer expiresAt={data.expires_at} onExpire={handleExpire} />
+        {phase !== 'results' && (
+          <Timer expiresAt={data.expires_at} onExpire={handleExpire} />
+        )}
       </div>
 
       <div style={styles.phaseIndicator}>
@@ -244,32 +261,11 @@ export default function Assessment() {
           />
         )}
 
-        {phase === 'results' && kbaResult && (
-          <div style={styles.resultCard}>
-            <div style={{ fontSize: '0.9rem', color: '#008f11', marginBottom: '0.5rem' }}>
-              KBA SCORE
-            </div>
-            <div style={styles.scoreDisplay}>
-              {Math.round(kbaResult.kba_score)}
-            </div>
-            <div style={{ color: '#c0ffc0', fontSize: '0.95rem' }}>
-              {kbaResult.total_correct} / {kbaResult.total_questions} correct
-            </div>
-            <div style={styles.pillarGrid}>
-              {Object.entries(kbaResult.pillar_scores).map(([pillar, data]) => (
-                <div key={pillar} style={styles.pillarItem}>
-                  <div style={styles.pillarLabel}>{pillar}</div>
-                  <div style={styles.pillarScore}>{Math.round(data.score)}%</div>
-                  <div style={{ fontSize: '0.7rem', color: '#008f11' }}>
-                    {data.correct}/{data.total}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: '2rem', color: '#008f11', fontSize: '0.85rem' }}>
-              Scoring + Results coming in Sprint 3...
-            </div>
-          </div>
+        {phase === 'results' && (
+          <Results
+            assessmentId={data.assessment_id}
+            mode={data.mode}
+          />
         )}
       </div>
     </div>
