@@ -154,6 +154,29 @@ CREATE TABLE IF NOT EXISTS task_roles (
 );
 CREATE INDEX idx_tr_role ON task_roles(role_id);
 
+-- PSV Samples (pre-scored prompt+output pairs for meta-cognition evaluation)
+CREATE TABLE IF NOT EXISTS psv_samples (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    external_id VARCHAR(20) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    pillar CHAR(1) NOT NULL CHECK (pillar IN ('P', 'E', 'C', 'M', 'A')),
+    difficulty INTEGER NOT NULL CHECK (difficulty BETWEEN 1 AND 3),
+    task_context TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    output_text TEXT NOT NULL,
+    ground_truth_level INTEGER NOT NULL CHECK (ground_truth_level BETWEEN 1 AND 5),
+    ground_truth_rationale TEXT,
+    content_tier VARCHAR(20) NOT NULL DEFAULT 'core'
+        CHECK (content_tier IN ('core', 'premium', 'enterprise', 'local')),
+    content_pack_id UUID REFERENCES content_packs(id),
+    is_active BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_psv_samples_pillar ON psv_samples(pillar);
+CREATE INDEX idx_psv_samples_active ON psv_samples(is_active);
+
 -- Assessments
 CREATE TABLE IF NOT EXISTS assessments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

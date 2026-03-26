@@ -275,24 +275,29 @@ class TestAggregatePillarScores:
 
 
 class TestComputePSVScore:
-    """Test PSV score computation."""
+    """Test PSV delta-based score computation."""
 
-    def test_psv_weighted_score(self):
-        judge = {
-            "relevance": {"score": 80, "rationale": ""},
-            "depth": {"score": 70, "rationale": ""},
-            "evidence": {"score": 60, "rationale": ""},
-        }
-        # 80*0.40 + 70*0.35 + 60*0.25 = 32 + 24.5 + 15 = 71.5
-        assert compute_psv_score(judge) == 71.5
+    def test_perfect_match(self):
+        assert compute_psv_score(3, 3) == 100.0
 
-    def test_psv_perfect_score(self):
-        judge = {
-            "relevance": {"score": 100, "rationale": ""},
-            "depth": {"score": 100, "rationale": ""},
-            "evidence": {"score": 100, "rationale": ""},
-        }
-        assert compute_psv_score(judge) == 100.0
+    def test_off_by_one(self):
+        assert compute_psv_score(4, 3) == 75.0
+        assert compute_psv_score(2, 3) == 75.0
+
+    def test_off_by_two(self):
+        assert compute_psv_score(5, 3) == 50.0
+        assert compute_psv_score(1, 3) == 50.0
+
+    def test_off_by_three(self):
+        assert compute_psv_score(5, 2) == 25.0
+
+    def test_off_by_four(self):
+        assert compute_psv_score(1, 5) == 0.0
+        assert compute_psv_score(5, 1) == 0.0
+
+    def test_all_levels_match(self):
+        for level in range(1, 6):
+            assert compute_psv_score(level, level) == 100.0
 
 
 # ============================================================
@@ -502,7 +507,7 @@ async def test_psv_quick_mode_rejected(seeded_scoring_client):
 
     res = await seeded_scoring_client.post(
         f"/assessments/{aid}/psv/submit",
-        json={"submission_text": "My portfolio..."},
+        json={"user_level": 3},
     )
     assert res.status_code == 400
     assert "full" in res.json()["detail"].lower()

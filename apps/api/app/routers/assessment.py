@@ -31,7 +31,8 @@ from app.services.ppa_engine import (
     select_tasks,
     store_attempt,
 )
-from app.services.psv_engine import compute_psv_score, judge_psv_submission
+from app.models.psv_sample import PsvSample
+from app.services.psv_engine import select_psv_sample, compute_psv_score
 from app.services.auth_service import (
     create_access_token,
     create_user,
@@ -124,14 +125,26 @@ class PPATasksResponse(BaseModel):
     tasks: list[dict[str, Any]]
 
 
+class PSVSampleResponse(BaseModel):
+    sample_id: str
+    title: str
+    pillar: str
+    difficulty: int
+    task_context: str
+    prompt_text: str
+    output_text: str
+    # NOTE: ground_truth_level is NOT exposed
+
+
 class PSVSubmitRequest(BaseModel):
-    submission_text: str
-    submission_url: str | None = None
+    user_level: int  # 1-5 PECAM level rating
 
 
 class PSVSubmitResponse(BaseModel):
     psv_score: float
-    dimensions: dict[str, DimensionScore]
+    user_level: int
+    ground_truth_level: int
+    delta: int
 
 
 class ViolationRequest(BaseModel):
@@ -526,59 +539,96 @@ async def submit_best_attempt(
     )
 
 
+@router.get("/{assessment_id}/psv/sample", response_model=PSVSampleResponse)
+async def get_psv_sample(assessment_id: str, db: AsyncSession = Depends(get_db)):
+    """Get a PSV sample for evaluation (full mode only)."""
+    assessment = await _load_assessment(db, assessment_id)
+    if assessment.mode != AssessmentMode.full:
+        raise HTTPException(400, "PSV is only available in full assessment mode")
+    if assessment.kba_score is None:
+        raise HTTPException(400, "KBA must be completed before PSV")
+    if assessment.ppa_score is None:
+        raise HTTPException(400, "PPA must be completed before PSV")
+    if assessment.psv_score is not None:
+        raise HTTPException(400, "PSV already submitted")
+
+    # Check if sample already assigned
+    if assessment.psv_submission and assessment.psv_submission.get("sample_id"):
+        sample_id = assessment.psv_submission["sample_id"]
+        result = await db.execute(select(PsvSample).where(PsvSample.id == uuid.UUID(sample_id)))
+        sample = result.scalar_one_or_none()
+    else:
+        sample = await select_psv_sample(db)
+        if not sample:
+            raise HTTPException(404, "No PSV samples available")
+        # Store the assigned sample so same one is returned on re-fetch
+        assessment.psv_submission = {"sample_id": str(sample.id)}
+        flag_modified(assessment, "psv_submission")
+        await db.commit()
+
+    if not sample:
+        raise HTTPException(404, "PSV sample not found")
+
+    return PSVSampleResponse(
+        sample_id=str(sample.id),
+        title=sample.title,
+        pillar=sample.pillar,
+        difficulty=sample.difficulty,
+        task_context=sample.task_context,
+        prompt_text=sample.prompt_text,
+        output_text=sample.output_text,
+    )
+
+
 @router.post("/{assessment_id}/psv/submit", response_model=PSVSubmitResponse)
 async def submit_psv(
     assessment_id: str,
     body: PSVSubmitRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit PSV portfolio entry (full mode only). LLM judges the submission."""
+    """Submit PSV evaluation (full mode only). Compares user's level against ground truth."""
     assessment = await _load_assessment(db, assessment_id)
-
-    # PSV is full mode only
     if assessment.mode != AssessmentMode.full:
-        raise HTTPException(status_code=400, detail="PSV is only available in full assessment mode")
-
-    # Must have completed KBA and PPA
+        raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
-        raise HTTPException(status_code=400, detail="KBA must be completed before PSV")
+        raise HTTPException(400, "KBA must be completed before PSV")
     if assessment.ppa_score is None:
-        raise HTTPException(status_code=400, detail="PPA must be completed before PSV")
-
-    # Check not already submitted
+        raise HTTPException(400, "PPA must be completed before PSV")
     if assessment.psv_score is not None:
-        raise HTTPException(status_code=400, detail="PSV already submitted")
+        raise HTTPException(400, "PSV already submitted")
+    if body.user_level < 1 or body.user_level > 5:
+        raise HTTPException(400, "user_level must be between 1 and 5")
 
-    # Judge via LLM
-    try:
-        judge_result = await judge_psv_submission(
-            submission_text=body.submission_text,
-            submission_url=body.submission_url,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"LLM judging failed: {str(e)}")
+    # Get assigned sample
+    if not assessment.psv_submission or not assessment.psv_submission.get("sample_id"):
+        raise HTTPException(400, "Must fetch PSV sample first via GET /psv/sample")
 
-    psv_score = compute_psv_score(judge_result)
+    sample_id = assessment.psv_submission["sample_id"]
+    result = await db.execute(select(PsvSample).where(PsvSample.id == uuid.UUID(sample_id)))
+    sample = result.scalar_one_or_none()
+    if not sample:
+        raise HTTPException(404, "PSV sample not found")
 
-    # Store results
+    psv_score = compute_psv_score(body.user_level, sample.ground_truth_level)
+    delta = abs(body.user_level - sample.ground_truth_level)
+
     assessment.psv_score = psv_score
     assessment.psv_submission = {
-        "submission_text": body.submission_text,
-        "submission_url": body.submission_url,
-        "judge_result": judge_result,
+        "sample_id": str(sample.id),
+        "sample_external_id": sample.external_id,
+        "ground_truth_level": sample.ground_truth_level,
+        "user_level": body.user_level,
+        "delta": delta,
+        "score": psv_score,
     }
     flag_modified(assessment, "psv_submission")
     await db.commit()
 
     return PSVSubmitResponse(
         psv_score=psv_score,
-        dimensions={
-            dim: DimensionScore(
-                score=data["score"],
-                rationale=data.get("rationale", ""),
-            )
-            for dim, data in judge_result.items()
-        },
+        user_level=body.user_level,
+        ground_truth_level=sample.ground_truth_level,
+        delta=delta,
     )
 
 

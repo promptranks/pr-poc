@@ -4,6 +4,7 @@ from app.models.taxonomy import Industry, Role
 from app.models.question import Question, Task
 from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
 from app.models.badge import Badge
+from app.models.psv_sample import PsvSample
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "AssessmentMode",
     "AssessmentStatus",
     "Badge",
+    "PsvSample",
 ]
