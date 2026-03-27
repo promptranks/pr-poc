@@ -3,6 +3,7 @@ import Landing from './pages/Landing'
 import Assessment from './pages/Assessment'
 import Badge from './pages/Badge'
 import Verify from './pages/Verify'
+import Leaderboard from './pages/Leaderboard'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/assessment/:id" element={<Assessment />} />
         <Route path="/badge/:badgeId" element={<Badge />} />
         <Route path="/verify/:badgeId" element={<Verify />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
       </Routes>
     </BrowserRouter>
   )

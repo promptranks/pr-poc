@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -13,6 +13,23 @@ const ROLES = [
   'Marketing Manager', 'Business Analyst', 'Executive', 'Student',
   'Researcher', 'Freelancer', 'Other',
 ]
+
+const LEVEL_COLORS: Record<number, string> = {
+  1: '#666666',
+  2: '#008f11',
+  3: '#00ff41',
+  4: '#6D5FFA',
+  5: '#EC41FB',
+}
+
+interface TopEntry {
+  rank: number
+  user_id: string
+  display_name: string
+  level: number
+  level_name: string
+  score: number
+}
 
 const PILLARS = [
   { letter: 'P', name: 'Prompt Design', desc: 'Crafting effective prompts' },
@@ -190,6 +207,14 @@ export default function Landing() {
   const [role, setRole] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [topEntries, setTopEntries] = useState<TopEntry[]>([])
+
+  useEffect(() => {
+    fetch(`${API_BASE}/leaderboard/?period=alltime&page=1&page_size=5`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.entries) setTopEntries(d.entries) })
+      .catch(() => {})
+  }, [])
 
   const startAssessment = async (mode: 'quick' | 'full') => {
     setLoading(true)
@@ -318,6 +343,74 @@ export default function Landing() {
                 Earn a verifiable badge
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Leaderboard Preview */}
+        <div id="leaderboard" style={styles.section}>
+          <h2 style={styles.sectionTitle}>Top Prompt Engineers</h2>
+          {topEntries.length === 0 ? (
+            <p style={styles.pillarDesc}>No entries yet. Complete a Full Assessment to rank up.</p>
+          ) : (
+            <div style={{ marginBottom: '1rem' }}>
+              {topEntries.map((entry) => (
+                <div
+                  key={entry.user_id ?? entry.rank}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    padding: '0.6rem 0',
+                    borderBottom: '1px solid rgba(0,255,65,0.08)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "'Press Start 2P', monospace",
+                      fontSize: '0.65rem',
+                      color: entry.rank <= 3 ? ['', '#FFD700', '#C0C0C0', '#CD7F32'][entry.rank] : '#008f11',
+                      minWidth: 24,
+                    }}
+                  >
+                    #{entry.rank}
+                  </span>
+                  <span style={{ flex: 1, fontSize: '0.9rem', color: '#c0ffc0' }}>
+                    {entry.display_name}
+                  </span>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      border: `1px solid ${LEVEL_COLORS[entry.level] || '#008f11'}`,
+                      color: LEVEL_COLORS[entry.level] || '#008f11',
+                      fontFamily: "'Press Start 2P', monospace",
+                      fontSize: '0.4rem',
+                      borderRadius: 3,
+                    }}
+                  >
+                    L{entry.level}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "'Press Start 2P', monospace",
+                      fontSize: '0.65rem',
+                      color: '#00ff41',
+                      minWidth: 28,
+                      textAlign: 'right',
+                    }}
+                  >
+                    {Math.round(entry.score)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button
+              style={styles.secondaryButton}
+              onClick={() => navigate('/leaderboard')}
+            >
+              View Full Leaderboard
+            </button>
           </div>
         </div>
 

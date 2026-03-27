@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine
 from app.models import Base
-from app.routers import assessment, auth, badges
+from app.routers import assessment, auth, badges, leaderboard
+from app.services.redis_client import close_redis
 
 
 @asynccontextmanager
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
+    await close_redis()
     await engine.dispose()
 
 
@@ -36,6 +38,7 @@ app.add_middleware(
 app.include_router(assessment.router)
 app.include_router(auth.router)
 app.include_router(badges.router)
+app.include_router(leaderboard.router)
 
 
 @app.get("/health")

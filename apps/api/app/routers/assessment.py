@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
 from app.models.badge import Badge
 from app.models.question import Question, Task
+from app.models.user import User
 from app.services.kba_engine import (
     check_timer_expired,
     expire_assessment,
@@ -41,6 +42,8 @@ from app.services.auth_service import (
 )
 from app.services.badge_service import create_badge
 from app.services.scoring import aggregate_pillar_scores, assign_level, compute_final_score
+from app.services.redis_client import get_redis
+from app.services.leaderboard_service import update_score, LEVEL_NAMES
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -752,6 +755,38 @@ async def get_results(
     assessment.completed_at = now
     flag_modified(assessment, "pillar_scores")
     await db.commit()
+
+    # Update leaderboard for full-mode assessments with a linked user
+    if mode_str == "full" and assessment.user_id is not None:
+        try:
+            redis = await get_redis()
+            user_result = await db.execute(
+                select(User).where(User.id == assessment.user_id)
+            )
+            user_obj = user_result.scalar_one_or_none()
+            user_name = user_obj.name if user_obj else ""
+
+            badge_result = await db.execute(
+                select(Badge).where(Badge.assessment_id == assessment.id)
+            )
+            badge_obj = badge_result.scalar_one_or_none()
+            badge_id = str(badge_obj.id) if badge_obj else None
+
+            await update_score(
+                redis=redis,
+                user_id=str(assessment.user_id),
+                score=final,
+                user_name=user_name,
+                level=level,
+                level_name=LEVEL_NAMES.get(level, "Novice"),
+                pillar_scores=pillar_agg,
+                badge_id=badge_id,
+                achieved_at=now.isoformat(),
+                industry_id=str(assessment.industry_id) if assessment.industry_id else None,
+                role_id=str(assessment.role_id) if assessment.role_id else None,
+            )
+        except Exception:
+            pass  # Leaderboard failure must not break assessment results
 
     return _build_results_response(assessment)
 
