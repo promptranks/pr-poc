@@ -16,6 +16,7 @@ from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
 from app.models.badge import Badge
 from app.models.question import Question, Task
 from app.models.user import User
+from app.models.pending_assessment import PendingAssessment
 from app.services.kba_engine import (
     check_timer_expired,
     expire_assessment,
@@ -50,6 +51,22 @@ from app.middleware.auth import get_current_user_optional
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
 
+# --- Helper functions ---
+
+
+def _check_premium_required(industry: str | None, role: str | None, mode: str) -> bool:
+    """Check if industry/role combination requires premium subscription."""
+    # Premium required for specific industries
+    premium_industries = ["healthcare", "finance", "legal", "enterprise"]
+    if industry and industry.lower() in premium_industries:
+        return True
+    # Full mode always requires premium for certain roles
+    premium_roles = ["architect", "director", "vp", "cto", "ciso"]
+    if mode == "full" and role and role.lower() in premium_roles:
+        return True
+    return False
+
+
 # --- Request/Response schemas ---
 
 
@@ -59,6 +76,24 @@ class StartAssessmentRequest(BaseModel):
     role: str | None = None
     industry_id: str | None = None
     role_id: str | None = None
+    session_id: str | None = None  # For resuming pending assessments
+
+
+class PendingAssessmentRequest(BaseModel):
+    industry: str
+    role: str
+    mode: str  # "quick" or "full"
+    session_id: str
+    user_id: str | None = None
+
+
+class PendingAssessmentResponse(BaseModel):
+    id: str
+    industry: str
+    role: str
+    mode: str
+    status: str
+    assessment_id: str | None = None
 
 
 class QuestionOut(BaseModel):
@@ -202,9 +237,33 @@ async def start_assessment(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):
-    """Start a new assessment (quick or full). No auth required."""
+    """Start a new assessment (quick or full). Checks for pending assessment and premium requirements."""
     if body.mode not in ("quick", "full"):
         raise HTTPException(status_code=400, detail="mode must be 'quick' or 'full'")
+
+    # Check for pending assessment to resume
+    pending = None
+    if body.session_id:
+        result = await db.execute(
+            select(PendingAssessment).where(PendingAssessment.session_id == body.session_id)
+        )
+        pending = result.scalar_one_or_none()
+
+    # Use pending assessment data if available
+    if pending:
+        body.industry = pending.industry
+        body.role = pending.role
+        body.mode = pending.mode
+
+    # Premium gating - single decision point
+    requires_premium = _check_premium_required(body.industry, body.role, body.mode)
+    if requires_premium:
+        user_tier = current_user.subscription_tier if current_user else "free"
+        if user_tier not in ("premium", "enterprise"):
+            raise HTTPException(
+                status_code=402,
+                detail="Premium subscription required for this industry/role combination"
+            )
 
     # Check usage limits for full assessments
     results_locked = False
@@ -269,6 +328,13 @@ async def start_assessment(
         kba_responses={"question_ids": [str(q.id) for q in questions]},
     )
     db.add(assessment)
+
+    # Update pending assessment if exists
+    if pending:
+        pending.status = "in_progress"
+        pending.assessment_id = assessment.id
+        pending.updated_at = now
+
     await db.commit()
     await db.refresh(assessment)
 
@@ -879,6 +945,11 @@ async def claim_assessment(
 
     # Link assessment to user
     assessment.user_id = user.id
+
+    # Mark badge as claimed
+    assessment.badge_claimed = True
+    assessment.badge_claimed_at = datetime.now(timezone.utc)
+
     await db.commit()
 
     # Generate badge
@@ -946,3 +1017,126 @@ def _build_results_response(assessment: Assessment) -> ResultsResponse:
         pillar_scores=assessment.pillar_scores or {},
         completed_at=completed_at_str,
     )
+
+
+# --- Pending Assessment Endpoints ---
+
+
+@router.post("/pending", response_model=PendingAssessmentResponse)
+async def create_pending_assessment(
+    body: PendingAssessmentRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create or update a pending assessment for state persistence."""
+    if body.mode not in ("quick", "full"):
+        raise HTTPException(status_code=400, detail="mode must be 'quick' or 'full'")
+
+    # Check if pending assessment already exists for this session
+    result = await db.execute(
+        select(PendingAssessment).where(PendingAssessment.session_id == body.session_id)
+    )
+    existing = result.scalar_one_or_none()
+
+    now = datetime.now(timezone.utc)
+
+    if existing:
+        # Update existing
+        existing.industry = body.industry
+        existing.role = body.role
+        existing.mode = body.mode
+        existing.updated_at = now
+        existing.expires_at = now + timedelta(hours=24)
+        if body.user_id:
+            try:
+                existing.user_id = uuid.UUID(body.user_id)
+            except ValueError:
+                pass
+        await db.commit()
+        await db.refresh(existing)
+        return PendingAssessmentResponse(
+            id=str(existing.id),
+            industry=existing.industry,
+            role=existing.role,
+            mode=existing.mode,
+            status=existing.status,
+            assessment_id=str(existing.assessment_id) if existing.assessment_id else None,
+        )
+    else:
+        # Create new
+        user_uuid = None
+        if body.user_id:
+            try:
+                user_uuid = uuid.UUID(body.user_id)
+            except ValueError:
+                pass
+
+        pending = PendingAssessment(
+            session_id=body.session_id,
+            user_id=user_uuid,
+            industry=body.industry,
+            role=body.role,
+            mode=body.mode,
+            status="pending",
+        )
+        db.add(pending)
+        await db.commit()
+        await db.refresh(pending)
+
+        return PendingAssessmentResponse(
+            id=str(pending.id),
+            industry=pending.industry,
+            role=pending.role,
+            mode=pending.mode,
+            status=pending.status,
+            assessment_id=None,
+        )
+
+
+@router.get("/pending/{session_id}", response_model=PendingAssessmentResponse)
+async def get_pending_assessment(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get pending assessment by session ID."""
+    result = await db.execute(
+        select(PendingAssessment).where(PendingAssessment.session_id == session_id)
+    )
+    pending = result.scalar_one_or_none()
+
+    if not pending:
+        raise HTTPException(status_code=404, detail="No pending assessment found")
+
+    return PendingAssessmentResponse(
+        id=str(pending.id),
+        industry=pending.industry,
+        role=pending.role,
+        mode=pending.mode,
+        status=pending.status,
+        assessment_id=str(pending.assessment_id) if pending.assessment_id else None,
+    )
+
+
+@router.delete("/pending/{pending_id}")
+async def delete_pending_assessment(
+    pending_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete/abandon a pending assessment."""
+    try:
+        pid = uuid.UUID(pending_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid pending assessment ID")
+
+    result = await db.execute(
+        select(PendingAssessment).where(PendingAssessment.id == pid)
+    )
+    pending = result.scalar_one_or_none()
+
+    if not pending:
+        raise HTTPException(status_code=404, detail="Pending assessment not found")
+
+    await db.delete(pending)
+    await db.commit()
+
+    return {"success": True}
+

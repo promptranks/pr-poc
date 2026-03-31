@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import AuthModal from '../components/AuthModal'
 import UpgradeModal from '../components/UpgradeModal'
 import { useAuth } from '../contexts/AuthContext'
+import { getOrCreateSessionId } from '../utils/sessionId'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const TAXONOMY_API_BASE = import.meta.env.VITE_BACKOFFICE_API_URL || 'http://localhost:8001'
@@ -29,16 +30,6 @@ interface TaxonomyOption {
   name: string
   slug: string
   industry_id?: string | null
-}
-
-interface UsageCheckResponse {
-  tier: string
-}
-
-interface PendingPremiumAssessment {
-  mode: 'quick' | 'full'
-  industryId: string
-  roleId: string
 }
 
 interface TopEntry {
@@ -585,31 +576,47 @@ export default function Landing() {
 
   const hasPremiumTaxonomySelection = Boolean(industryId || roleId)
 
-  const persistPendingPremiumAssessment = (mode: 'quick' | 'full') => {
-    const pendingAssessment: PendingPremiumAssessment = {
-      mode,
-      industryId,
-      roleId,
-    }
-    sessionStorage.setItem('auth_intent', 'premium_assessment')
-    sessionStorage.setItem('pending_premium_assessment', JSON.stringify(pendingAssessment))
-  }
+  const createPendingAssessment = async (mode: 'quick' | 'full') => {
+    const sessionId = getOrCreateSessionId()
+    const industryName = selectedIndustry?.name || ''
+    const roleName = selectedRole?.name || ''
 
-  const clearPendingPremiumAssessment = () => {
-    sessionStorage.removeItem('auth_intent')
-    sessionStorage.removeItem('pending_premium_assessment')
-  }
-
-  const startAssessmentRequest = async (mode: 'quick' | 'full', industryName?: string | null, roleName?: string | null) => {
-    const res = await fetch(`${API_BASE}/assessments/start`, {
+    await fetch(`${API_BASE}/assessments/pending`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        session_id: sessionId,
+        industry: industryName,
+        role: roleName,
         mode,
-        industry: industryName || null,
-        role: roleName || null,
+        user_id: user?.id || null,
       }),
     })
+  }
+
+  const startAssessmentRequest = async (mode: 'quick' | 'full') => {
+    const sessionId = getOrCreateSessionId()
+
+    const res = await fetch(`${API_BASE}/assessments/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        mode,
+        session_id: sessionId,
+        industry: selectedIndustry?.name || null,
+        role: selectedRole?.name || null,
+        industry_id: industryId || null,
+        role_id: roleId || null,
+      }),
+    })
+
+    if (res.status === 402) {
+      // Premium required
+      throw new Error('PREMIUM_REQUIRED')
+    }
 
     if (!res.ok) {
       const data = await res.json()
@@ -617,31 +624,21 @@ export default function Landing() {
     }
 
     const data = await res.json()
-    sessionStorage.setItem('assessment', JSON.stringify(data))
     navigate(`/assessment/${data.assessment_id}`)
   }
 
-  const enforcePremiumGate = async () => {
-    if (!token) {
-      throw new Error('Unable to verify your subscription right now')
-    }
+  useEffect(() => {
+    const checkoutStatus = searchParams.get('checkout')
+    const sessionId = searchParams.get('session_id')
 
-    const usageRes = await fetch(`${API_BASE}/usage/check`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-
-    if (!usageRes.ok) {
-      throw new Error('Unable to verify your subscription right now')
+    if (checkoutStatus === 'success' && sessionId) {
+      setCheckoutMessage('Payment successful! Verifying your premium access...')
+      sessionStorage.setItem('pending_subscription_upgrade', 'completed')
+    } else if (checkoutStatus === 'cancelled') {
+      setCheckoutMessage('Payment was cancelled. You can try again anytime.')
+      setTimeout(() => setCheckoutMessage(''), 5000)
     }
-
-    const usageData: UsageCheckResponse = await usageRes.json()
-    if (usageData.tier === 'free') {
-      setShowUpgradeModal(true)
-      throw new Error('Industry and role assessments are available only for paid users. Upgrade to continue or revise your selection.')
-    }
-  }
+  }, [searchParams])
 
   useEffect(() => {
     fetch(`${API_BASE}/leaderboard/?period=alltime&page=1&page_size=5`)
@@ -714,72 +711,35 @@ export default function Landing() {
 
   useEffect(() => {
     if (!isAuthenticated || !token) return
-    if (sessionStorage.getItem('auth_intent') !== 'premium_assessment') return
     if (taxonomyLoading) return
 
-    const pendingRaw = sessionStorage.getItem('pending_premium_assessment')
-    if (!pendingRaw) {
-      clearPendingPremiumAssessment()
-      return
+    const pendingUpgrade = sessionStorage.getItem('pending_subscription_upgrade')
+    if (pendingUpgrade === 'completed') {
+      sessionStorage.removeItem('pending_subscription_upgrade')
+      setCheckoutMessage('Premium access verified! You can now start your assessment.')
+      setTimeout(() => setCheckoutMessage(''), 5000)
     }
-
-    let pendingAssessment: PendingPremiumAssessment | null = null
-    try {
-      pendingAssessment = JSON.parse(pendingRaw) as PendingPremiumAssessment
-    } catch {
-      clearPendingPremiumAssessment()
-      return
-    }
-
-    const resumePremiumAssessment = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const industryName = industries.find((entry) => entry.id === pendingAssessment?.industryId)?.name || null
-        const roleName = allRoles.find((entry) => entry.id === pendingAssessment?.roleId)?.name || null
-
-        if (!industryName && !roleName) {
-          clearPendingPremiumAssessment()
-          return
-        }
-
-        await enforcePremiumGate()
-        clearPendingPremiumAssessment()
-        await startAssessmentRequest(pendingAssessment!.mode, industryName, roleName)
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to start assessment'
-        if (message.includes('paid users')) {
-          return
-        }
-        setError(message)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void resumePremiumAssessment()
-  }, [allRoles, industries, isAuthenticated, taxonomyLoading, token])
+  }, [isAuthenticated, token, taxonomyLoading])
 
   const startAssessment = async (mode: 'quick' | 'full') => {
     setLoading(true)
     setError('')
     try {
-      if (hasPremiumTaxonomySelection) {
-        if (!isAuthenticated || !token) {
-          persistPendingPremiumAssessment(mode)
-          setAuthModalOpen(true)
-          return
-        }
+      // Create pending assessment in database
+      await createPendingAssessment(mode)
 
-        await enforcePremiumGate()
-      } else {
-        clearPendingPremiumAssessment()
-      }
-
-      await startAssessmentRequest(mode, selectedIndustry?.name, selectedRole?.name)
+      // Try to start assessment
+      await startAssessmentRequest(mode)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start assessment'
-      setError(message)
+
+      if (message === 'PREMIUM_REQUIRED') {
+        // Redirect to pricing page
+        setShowUpgradeModal(true)
+        setError('Premium subscription required for this industry/role combination')
+      } else {
+        setError(message)
+      }
     } finally {
       setLoading(false)
     }
@@ -969,7 +929,6 @@ export default function Landing() {
                 <button
                   style={styles.authLink}
                   onClick={() => {
-                    clearPendingPremiumAssessment()
                     setAuthMode('signin')
                     setAuthModalOpen(true)
                   }}
@@ -980,7 +939,6 @@ export default function Landing() {
                 <button
                   style={styles.authLink}
                   onClick={() => {
-                    clearPendingPremiumAssessment()
                     setAuthMode('signup')
                     setAuthModalOpen(true)
                   }}

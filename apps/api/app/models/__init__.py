@@ -6,6 +6,7 @@ from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
 from app.models.badge import Badge
 from app.models.psv_sample import PsvSample
 from app.models.learning_resource import LearningResource
+from app.models.pending_assessment import PendingAssessment
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "Badge",
     "PsvSample",
     "LearningResource",
+    "PendingAssessment",
 ]

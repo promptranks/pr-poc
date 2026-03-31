@@ -45,7 +45,46 @@ export default function Dashboard() {
   useEffect(() => {
     void fetchDashboard()
     void fetchAnalytics()
+    void claimPendingBadges()
   }, [token])
+
+  const claimPendingBadges = async () => {
+    if (!token) return
+
+    try {
+      // Fetch unclaimed badges
+      const res = await fetch(`${API_URL}/dashboard/unclaimed-badges`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!res.ok) return
+
+      const data = await res.json()
+      const unclaimedBadges = data.unclaimed_badges || []
+
+      // Auto-claim all unclaimed badges
+      for (const badge of unclaimedBadges) {
+        try {
+          await fetch(`${API_URL}/assessments/${badge.assessment_id}/claim`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          })
+        } catch (err) {
+          console.error('Failed to claim badge:', err)
+        }
+      }
+
+      // Refresh dashboard if we claimed any badges
+      if (unclaimedBadges.length > 0) {
+        await fetchDashboard()
+      }
+    } catch (error) {
+      console.error('Failed to claim pending badges:', error)
+    }
+  }
 
   useEffect(() => {
     if (!token) return

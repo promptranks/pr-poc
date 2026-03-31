@@ -163,23 +163,20 @@ export default function Assessment() {
   const [expired, setExpired] = useState(false)
   const [_kbaResult, setKbaResult] = useState<KBAResult | null>(null)
 
+  // Suppress unused warning - setData will be used when we implement assessment fetching
+  void setData
+
   const { violations, isVoided, showWarning, dismissWarning } = useAntiCheat({
     assessmentId: id || '',
     enabled: phase !== 'results' && !!id,
   })
 
   useEffect(() => {
-    // Load assessment data from sessionStorage
-    const stored = sessionStorage.getItem('assessment')
-    if (stored) {
-      const parsed: AssessmentData = JSON.parse(stored)
-      if (parsed.assessment_id === id) {
-        setData(parsed)
-        return
-      }
+    // Assessment data is now managed by the backend via pending_assessments
+    // No need to check sessionStorage - just verify we have an ID
+    if (!id) {
+      navigate('/')
     }
-    // If no data, redirect to landing
-    navigate('/')
   }, [id, navigate])
 
   const handleExpire = useCallback(() => {

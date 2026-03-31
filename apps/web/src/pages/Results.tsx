@@ -32,14 +32,6 @@ interface ResultsData {
   completed_at: string
 }
 
-interface ClaimData {
-  badge_id: string
-  badge_svg: string
-  verification_url: string
-  token: string
-  user_id: string
-}
-
 interface ResultsProps {
   assessmentId: string
   mode: string
@@ -304,15 +296,6 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [scoreAnimated, setScoreAnimated] = useState(0)
-
-  // Claim form state
-  const [isLogin, setIsLogin] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
-  const [claiming, setClaiming] = useState(false)
-  const [claimError, setClaimError] = useState<string | null>(null)
-  const [claimData, setClaimData] = useState<ClaimData | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
 
   useEffect(() => {
@@ -357,13 +340,10 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   }, [assessmentId])
 
   useEffect(() => {
-    if (!isAuthenticated || !token || claimData) return
+    if (!isAuthenticated || !token) return
     if (!results || results.results_locked) return
 
     const autoClaim = async () => {
-      setClaiming(true)
-      setClaimError(null)
-
       try {
         const res = await fetch(`${API_URL}/assessments/${assessmentId}/claim`, {
           method: 'POST',
@@ -373,53 +353,18 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
           },
         })
 
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.detail || 'Claim failed')
+        if (!res.ok && res.status !== 409) {
+          // 409 means already claimed, which is fine
+          console.error('Auto-claim failed')
         }
-
-        const data: ClaimData = await res.json()
-        setClaimData(data)
       } catch (err) {
-        setClaimError(err instanceof Error ? err.message : 'Unknown error')
-      } finally {
-        setClaiming(false)
+        // Silently fail for auto-claim
+        console.error('Auto-claim error:', err)
       }
     }
 
     void autoClaim()
-  }, [assessmentId, claimData, isAuthenticated, results, token])
-
-  const handleClaim = async () => {
-    setClaiming(true)
-    setClaimError(null)
-
-    try {
-      const res = await fetch(`${API_URL}/assessments/${assessmentId}/claim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password,
-          name: name || email.split('@')[0],
-          is_login: isLogin,
-        }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.detail || 'Claim failed')
-      }
-
-      const data: ClaimData = await res.json()
-      setClaimData(data)
-      sessionStorage.setItem('auth_token', data.token)
-    } catch (err) {
-      setClaimError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setClaiming(false)
-    }
-  }
+  }, [assessmentId, isAuthenticated, results, token])
 
   if (loading) {
     return <div style={styles.loading}>[ COMPUTING RESULTS... ]</div>
@@ -522,17 +467,13 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
       </div>
 
       {/* Claim Section */}
-      {claimData ? (
+      {isAuthenticated ? (
         <div style={styles.claimSuccess}>
-          <div style={styles.sectionTitle}>Badge Claimed!</div>
-          <div
-            dangerouslySetInnerHTML={{ __html: claimData.badge_svg }}
-            style={{ margin: '1rem auto', maxWidth: 400 }}
-          />
+          <div style={styles.sectionTitle}>Assessment Complete!</div>
+          <p style={{ color: '#00ff41', fontSize: '0.9rem', marginTop: '1rem' }}>
+            Your badge has been saved to your dashboard
+          </p>
           <div style={styles.ctaSection}>
-            <a href={`/badge/${claimData.badge_id}`} style={styles.badgeLink}>
-              View Badge
-            </a>
             {results.mode === 'full' && (
               <button onClick={() => navigate('/leaderboard')} style={styles.ctaButton}>
                 View Leaderboard
@@ -543,58 +484,17 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
             </button>
           </div>
         </div>
-      ) : claiming ? (
-        <div style={styles.claimSection}>
-          <div style={styles.claimTitle}>Claiming your badge...</div>
-        </div>
-      ) : isAuthenticated ? (
-        <div style={styles.claimSection}>
-          <div style={styles.claimTitle}>Processing...</div>
-        </div>
       ) : (
         <div style={styles.claimSection}>
-          <div style={styles.claimTitle}>
-            {isLogin ? 'LOGIN TO CLAIM' : 'REGISTER TO CLAIM'}
-          </div>
-          {!isLogin && (
-            <input
-              type="text"
-              placeholder="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={styles.input}
-            />
-          )}
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-          />
-          <input
-            type="password"
-            placeholder="Password (min 8 chars)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-          />
+          <div style={styles.claimTitle}>Sign in to save your badge</div>
+          <p style={{ color: '#008f11', fontSize: '0.8rem', marginTop: '1rem' }}>
+            Create an account to track your progress and claim your achievement badge
+          </p>
           <button
-            onClick={handleClaim}
-            disabled={claiming || !email || !password}
-            style={{
-              ...styles.claimButton,
-              opacity: claiming || !email || !password ? 0.5 : 1,
-            }}
+            onClick={() => navigate('/dashboard')}
+            style={styles.ctaButton}
           >
-            {claiming ? '[ CLAIMING... ]' : isLogin ? '[ LOGIN & CLAIM ]' : '[ REGISTER & CLAIM ]'}
-          </button>
-          {claimError && <div style={styles.claimError}>{claimError}</div>}
-          <button
-            onClick={() => { setIsLogin(!isLogin); setClaimError(null) }}
-            style={styles.toggleLink}
-          >
-            {isLogin ? 'Need an account? Register' : 'Already have an account? Login'}
+            Sign In
           </button>
         </div>
       )}

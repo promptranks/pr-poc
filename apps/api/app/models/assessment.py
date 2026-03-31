@@ -50,6 +50,10 @@ class Assessment(Base):
     pillar_scores = Column(JSON, nullable=True)  # {"P": 85, "E": 78, ...}
     results_locked = Column(Boolean, default=False)
 
+    # Badge claiming (Phase 1 simplification)
+    badge_claimed = Column(Boolean, default=False)
+    badge_claimed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Anti-cheat
     violations = Column(Integer, default=0)
     violation_log = Column(JSON, nullable=True)

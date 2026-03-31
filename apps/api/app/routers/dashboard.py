@@ -6,7 +6,8 @@ from uuid import UUID
 
 from app.database import get_db
 from app.models.user import User
-from app.models.assessment import Assessment
+from app.models.assessment import Assessment, AssessmentStatus
+from app.models.badge import Badge
 from app.services.usage_service import UsageService
 from app.services.analytics_service import AnalyticsService
 from app.middleware.auth import get_current_user
@@ -136,3 +137,44 @@ async def get_assessment_details(
         "pillar_scores": pillar_scores,
         "recommendations": recommendations
     }
+
+
+@router.get("/unclaimed-badges")
+async def get_unclaimed_badges(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get list of completed assessments that haven't had their badges claimed yet."""
+    # Find completed assessments for this user where badge_claimed = False
+    result = await db.execute(
+        select(Assessment)
+        .where(
+            Assessment.user_id == current_user.id,
+            Assessment.status == AssessmentStatus.completed,
+            Assessment.badge_claimed == False
+        )
+        .order_by(Assessment.completed_at.desc())
+    )
+    unclaimed_assessments = result.scalars().all()
+
+    badges_data = []
+    for assessment in unclaimed_assessments:
+        # Check if badge exists for this assessment
+        badge_result = await db.execute(
+            select(Badge).where(Badge.assessment_id == assessment.id)
+        )
+        badge = badge_result.scalar_one_or_none()
+
+        badges_data.append({
+            "assessment_id": str(assessment.id),
+            "badge_id": str(badge.id) if badge else None,
+            "industry": assessment.industry,
+            "role": assessment.role,
+            "mode": assessment.mode.value,
+            "score": assessment.final_score,
+            "level": assessment.level,
+            "completed_at": assessment.completed_at.isoformat() if assessment.completed_at else None,
+        })
+
+    return {"unclaimed_badges": badges_data}
+
