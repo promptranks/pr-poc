@@ -10,6 +10,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from app.models import Base
+from app.models.user import User
 from app.models.question import Question
 from app.database import get_db
 from app.main import app
@@ -76,6 +77,22 @@ async def client(engine):
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session):
+    """Create a basic persisted user for tests that need one."""
+    user = User(
+        id=uuid.uuid4(),
+        email="fixture-user@test.com",
+        name="Fixture User",
+        password_hash="hashed",
+        subscription_tier="free",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
 
 
 @pytest_asyncio.fixture

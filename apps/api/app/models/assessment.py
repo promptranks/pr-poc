@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, DateTime, JSON, ForeignKey, Enum
+from sqlalchemy import Column, String, Integer, Float, DateTime, JSON, ForeignKey, Enum, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 import enum
 
@@ -48,6 +48,7 @@ class Assessment(Base):
     final_score = Column(Float, nullable=True)
     level = Column(Integer, nullable=True)  # 1-5
     pillar_scores = Column(JSON, nullable=True)  # {"P": 85, "E": 78, ...}
+    results_locked = Column(Boolean, default=False)
 
     # Anti-cheat
     violations = Column(Integer, default=0)

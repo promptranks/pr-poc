@@ -5,6 +5,7 @@ from app.models.question import Question, Task
 from app.models.assessment import Assessment, AssessmentMode, AssessmentStatus
 from app.models.badge import Badge
 from app.models.psv_sample import PsvSample
+from app.models.learning_resource import LearningResource
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "AssessmentStatus",
     "Badge",
     "PsvSample",
+    "LearningResource",
 ]

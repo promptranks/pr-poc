@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import async_session, engine
 from app.models import Base
-from app.routers import assessment, auth, badges, leaderboard
+from app.routers import assessment, auth, badges, leaderboard, usage, dashboard, analytics, payments
 from app.services.leaderboard_service import rebuild_all
 from app.services.redis_client import close_redis, get_redis
 
@@ -50,6 +50,10 @@ app.include_router(assessment.router)
 app.include_router(auth.router)
 app.include_router(badges.router)
 app.include_router(leaderboard.router)
+app.include_router(usage.router)
+app.include_router(dashboard.router)
+app.include_router(analytics.router)
+app.include_router(payments.router)
 
 
 @app.get("/health")

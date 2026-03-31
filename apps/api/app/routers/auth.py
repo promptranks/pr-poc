@@ -1,8 +1,10 @@
 """Auth router: register, login endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+import secrets
 
 from app.database import get_db
 from app.services.auth_service import (
@@ -11,6 +13,9 @@ from app.services.auth_service import (
     get_user_by_email,
     verify_password,
 )
+from app.services.oauth_service import OAuthService
+from app.services.magic_link_service import MagicLinkService
+from app.services.email_service import EmailService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,6 +48,22 @@ class LoginResponse(BaseModel):
     token: str
 
 
+class MagicLinkRequest(BaseModel):
+    email: str
+
+
+class MagicLinkResponse(BaseModel):
+    message: str
+
+
+class OAuthCallbackResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    avatar_url: str | None
+    token: str
+
+
 # --- Endpoints ---
 
 
@@ -63,6 +84,8 @@ async def register(
 
     user = await create_user(db, body.email, body.name, body.password)
     token = create_access_token(user.id, user.email)
+
+    EmailService.send_welcome_email(user.email, user.name)
 
     return RegisterResponse(
         id=str(user.id),
@@ -93,3 +116,88 @@ async def login(
         name=user.name,
         token=token,
     )
+
+
+@router.get("/google")
+async def google_oauth():
+    """Redirect to Google OAuth."""
+    state = secrets.token_urlsafe(16)
+    auth_url = OAuthService.get_google_auth_url(state)
+    return RedirectResponse(auth_url)
+
+
+@router.get("/google/callback", response_model=OAuthCallbackResponse)
+async def google_callback(
+    code: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle Google OAuth callback."""
+    oauth_data = await OAuthService.exchange_google_code(code)
+    user = await OAuthService.get_or_create_user(db, "google", oauth_data)
+    token = create_access_token(user.id, user.email)
+
+    return OAuthCallbackResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        token=token,
+    )
+
+
+@router.get("/github")
+async def github_oauth():
+    """Redirect to GitHub OAuth."""
+    state = secrets.token_urlsafe(16)
+    auth_url = OAuthService.get_github_auth_url(state)
+    return RedirectResponse(auth_url)
+
+
+@router.get("/github/callback", response_model=OAuthCallbackResponse)
+async def github_callback(
+    code: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle GitHub OAuth callback."""
+    oauth_data = await OAuthService.exchange_github_code(code)
+    user = await OAuthService.get_or_create_user(db, "github", oauth_data)
+    token = create_access_token(user.id, user.email)
+
+    return OAuthCallbackResponse(
+        id=str(user.id),
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        token=token,
+    )
+
+
+@router.post("/magic-link", response_model=MagicLinkResponse)
+async def send_magic_link(
+    body: MagicLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Send magic link to email."""
+    token = await MagicLinkService.create_magic_link(db, body.email)
+    return MagicLinkResponse(message="Check your email")
+
+
+@router.get("/magic-link/verify", response_model=OAuthCallbackResponse)
+async def verify_magic_link(
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify magic link and login."""
+    try:
+        user = await MagicLinkService.verify_magic_link(db, token)
+        access_token = create_access_token(user.id, user.email)
+
+        return OAuthCallbackResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            avatar_url=user.avatar_url,
+            token=access_token,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

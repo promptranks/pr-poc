@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import AuthModal from '../components/AuthModal'
+import UpgradeModal from '../components/UpgradeModal'
+import { useAuth } from '../contexts/AuthContext'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const TAXONOMY_API_BASE = import.meta.env.VITE_BACKOFFICE_API_URL || 'http://localhost:8001'
@@ -28,6 +31,16 @@ interface TaxonomyOption {
   industry_id?: string | null
 }
 
+interface UsageCheckResponse {
+  tier: string
+}
+
+interface PendingPremiumAssessment {
+  mode: 'quick' | 'full'
+  industryId: string
+  roleId: string
+}
+
 interface TopEntry {
   rank: number
   user_id: string
@@ -50,6 +63,23 @@ const PILLAR_ROWS = [
 ]
 
 const styles = {
+  topNav: {
+    position: 'absolute' as const,
+    top: 20,
+    right: 40,
+    display: 'flex',
+    gap: '15px',
+    zIndex: 10,
+  },
+  navLink: {
+    background: 'rgba(255,255,255,0.1)',
+    color: '#F1F5F9',
+    border: '1px solid rgba(255,255,255,0.2)',
+    padding: '8px 16px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
   page: {
     minHeight: '100vh',
     background: 'linear-gradient(160deg, #07091A 0%, #0E0B2E 40%, #0A0714 100%)',
@@ -180,6 +210,20 @@ const styles = {
     fontSize: '0.78rem',
     fontWeight: 700,
     letterSpacing: '0.08em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  premiumBadge: {
+    display: 'inline-block',
+    padding: '0.2rem 0.5rem',
+    borderRadius: 4,
+    background: 'rgba(139,92,246,0.2)',
+    border: '1px solid rgba(139,92,246,0.4)',
+    color: '#C4B5FD',
+    fontSize: '0.65rem',
+    fontWeight: 800,
+    letterSpacing: '0.05em',
   },
   select: {
     padding: '12px 14px',
@@ -244,6 +288,29 @@ const styles = {
     color: '#CBD5E1',
     fontSize: '0.8rem',
     fontWeight: 600,
+  },
+  authLinks: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    marginTop: '1rem',
+    fontSize: '0.9rem',
+  },
+  authPrompt: {
+    color: '#94A3B8',
+  },
+  authLink: {
+    background: 'none',
+    border: 'none',
+    color: '#A78BFA',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    textDecoration: 'underline',
+  },
+  authDivider: {
+    color: '#64748B',
   },
   section: {
     marginTop: '1.5rem',
@@ -488,6 +555,10 @@ const styles = {
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { user, token, isAuthenticated, logout } = useAuth()
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [industryId, setIndustryId] = useState('')
   const [roleId, setRoleId] = useState('')
   const [loading, setLoading] = useState(false)
@@ -495,9 +566,12 @@ export default function Landing() {
   const [topEntries, setTopEntries] = useState<TopEntry[]>([])
   const [industries, setIndustries] = useState<TaxonomyOption[]>([])
   const [roles, setRoles] = useState<TaxonomyOption[]>([])
+  const [allRoles, setAllRoles] = useState<TaxonomyOption[]>([])
   const [taxonomyLoading, setTaxonomyLoading] = useState(true)
   const [roleLoading, setRoleLoading] = useState(false)
   const [taxonomyError, setTaxonomyError] = useState('')
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [checkoutMessage, setCheckoutMessage] = useState('')
 
   const selectedIndustry = useMemo(
     () => industries.find((entry) => entry.id === industryId) ?? null,
@@ -509,6 +583,66 @@ export default function Landing() {
     [roles, roleId],
   )
 
+  const hasPremiumTaxonomySelection = Boolean(industryId || roleId)
+
+  const persistPendingPremiumAssessment = (mode: 'quick' | 'full') => {
+    const pendingAssessment: PendingPremiumAssessment = {
+      mode,
+      industryId,
+      roleId,
+    }
+    sessionStorage.setItem('auth_intent', 'premium_assessment')
+    sessionStorage.setItem('pending_premium_assessment', JSON.stringify(pendingAssessment))
+  }
+
+  const clearPendingPremiumAssessment = () => {
+    sessionStorage.removeItem('auth_intent')
+    sessionStorage.removeItem('pending_premium_assessment')
+  }
+
+  const startAssessmentRequest = async (mode: 'quick' | 'full', industryName?: string | null, roleName?: string | null) => {
+    const res = await fetch(`${API_BASE}/assessments/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode,
+        industry: industryName || null,
+        role: roleName || null,
+      }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.detail || 'Failed to start assessment')
+    }
+
+    const data = await res.json()
+    sessionStorage.setItem('assessment', JSON.stringify(data))
+    navigate(`/assessment/${data.assessment_id}`)
+  }
+
+  const enforcePremiumGate = async () => {
+    if (!token) {
+      throw new Error('Unable to verify your subscription right now')
+    }
+
+    const usageRes = await fetch(`${API_BASE}/usage/check`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!usageRes.ok) {
+      throw new Error('Unable to verify your subscription right now')
+    }
+
+    const usageData: UsageCheckResponse = await usageRes.json()
+    if (usageData.tier === 'free') {
+      setShowUpgradeModal(true)
+      throw new Error('Industry and role assessments are available only for paid users. Upgrade to continue or revise your selection.')
+    }
+  }
+
   useEffect(() => {
     fetch(`${API_BASE}/leaderboard/?period=alltime&page=1&page_size=5`)
       .then((r) => (r.ok ? r.json() : null))
@@ -519,70 +653,130 @@ export default function Landing() {
   }, [])
 
   useEffect(() => {
-    const fetchIndustries = async () => {
+    const checkoutStatus = searchParams.get('checkout')
+    const sessionId = searchParams.get('session_id')
+
+    if (checkoutStatus === 'success' && sessionId) {
+      setCheckoutMessage('Payment successful! Verifying your premium access...')
+      sessionStorage.setItem('pending_subscription_upgrade', 'completed')
+    } else if (checkoutStatus === 'cancelled') {
+      setCheckoutMessage('Payment was cancelled. You can try again anytime.')
+      setTimeout(() => setCheckoutMessage(''), 5000)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    const fetchTaxonomy = async () => {
       setTaxonomyLoading(true)
       setTaxonomyError('')
       try {
-        const res = await fetch(`${TAXONOMY_API_BASE}/industries`)
-        if (!res.ok) throw new Error('Failed to load industries')
-        const data: TaxonomyOption[] = await res.json()
-        setIndustries(data)
+        const [industriesRes, rolesRes] = await Promise.all([
+          fetch(`${TAXONOMY_API_BASE}/industries`),
+          fetch(`${TAXONOMY_API_BASE}/roles`),
+        ])
+
+        if (!industriesRes.ok || !rolesRes.ok) throw new Error('Failed to load taxonomy')
+
+        const [industryData, roleData]: [TaxonomyOption[], TaxonomyOption[]] = await Promise.all([
+          industriesRes.json(),
+          rolesRes.json(),
+        ])
+
+        const industryIdsWithRoles = new Set(
+          roleData
+            .map((entry) => entry.industry_id)
+            .filter((entry): entry is string => Boolean(entry)),
+        )
+
+        setIndustries(industryData.filter((entry) => industryIdsWithRoles.has(entry.id)))
+        setAllRoles(roleData)
       } catch {
         setIndustries([])
+        setAllRoles([])
         setTaxonomyError('Industry and role taxonomy is temporarily unavailable.')
       } finally {
         setTaxonomyLoading(false)
       }
     }
 
-    fetchIndustries()
+    fetchTaxonomy()
   }, [])
 
   useEffect(() => {
-    const fetchRoles = async () => {
-      setRoleLoading(true)
-      setTaxonomyError('')
+    const nextRoles = industryId
+      ? allRoles.filter((entry) => entry.industry_id === industryId)
+      : allRoles
+
+    setRoles(nextRoles)
+    setRoleId((current) => (nextRoles.some((entry) => entry.id === current) ? current : ''))
+    setRoleLoading(false)
+  }, [allRoles, industryId])
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+    if (sessionStorage.getItem('auth_intent') !== 'premium_assessment') return
+    if (taxonomyLoading) return
+
+    const pendingRaw = sessionStorage.getItem('pending_premium_assessment')
+    if (!pendingRaw) {
+      clearPendingPremiumAssessment()
+      return
+    }
+
+    let pendingAssessment: PendingPremiumAssessment | null = null
+    try {
+      pendingAssessment = JSON.parse(pendingRaw) as PendingPremiumAssessment
+    } catch {
+      clearPendingPremiumAssessment()
+      return
+    }
+
+    const resumePremiumAssessment = async () => {
+      setLoading(true)
+      setError('')
       try {
-        const qs = industryId ? `?industry_id=${encodeURIComponent(industryId)}` : ''
-        const res = await fetch(`${TAXONOMY_API_BASE}/roles${qs}`)
-        if (!res.ok) throw new Error('Failed to load roles')
-        const data: TaxonomyOption[] = await res.json()
-        setRoles(data)
-        setRoleId((current) => (data.some((entry) => entry.id === current) ? current : ''))
-      } catch {
-        setRoles([])
-        setRoleId('')
-        setTaxonomyError('Role taxonomy could not be loaded right now.')
+        const industryName = industries.find((entry) => entry.id === pendingAssessment?.industryId)?.name || null
+        const roleName = allRoles.find((entry) => entry.id === pendingAssessment?.roleId)?.name || null
+
+        if (!industryName && !roleName) {
+          clearPendingPremiumAssessment()
+          return
+        }
+
+        await enforcePremiumGate()
+        clearPendingPremiumAssessment()
+        await startAssessmentRequest(pendingAssessment!.mode, industryName, roleName)
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to start assessment'
+        if (message.includes('paid users')) {
+          return
+        }
+        setError(message)
       } finally {
-        setRoleLoading(false)
+        setLoading(false)
       }
     }
 
-    fetchRoles()
-  }, [industryId])
+    void resumePremiumAssessment()
+  }, [allRoles, industries, isAuthenticated, taxonomyLoading, token])
 
   const startAssessment = async (mode: 'quick' | 'full') => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${API_BASE}/assessments/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode,
-          industry: selectedIndustry?.name || null,
-          role: selectedRole?.name || null,
-        }),
-      })
+      if (hasPremiumTaxonomySelection) {
+        if (!isAuthenticated || !token) {
+          persistPendingPremiumAssessment(mode)
+          setAuthModalOpen(true)
+          return
+        }
 
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.detail || 'Failed to start assessment')
+        await enforcePremiumGate()
+      } else {
+        clearPendingPremiumAssessment()
       }
 
-      const data = await res.json()
-      sessionStorage.setItem('assessment', JSON.stringify(data))
-      navigate(`/assessment/${data.assessment_id}`)
+      await startAssessmentRequest(mode, selectedIndustry?.name, selectedRole?.name)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start assessment'
       setError(message)
@@ -596,6 +790,16 @@ export default function Landing() {
 
   return (
     <div style={styles.page}>
+      {isAuthenticated && (
+        <div style={styles.topNav}>
+          <button onClick={() => navigate('/dashboard')} style={styles.navLink}>
+            Dashboard
+          </button>
+          <button onClick={logout} style={styles.navLink}>
+            Logout
+          </button>
+        </div>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -683,10 +887,18 @@ export default function Landing() {
               Personalize your run with your current industry and role. These selectors are loaded from the live taxonomy.
             </p>
 
+            {checkoutMessage && (
+              <div style={{ ...styles.error, color: checkoutMessage.includes('successful') ? '#10B981' : '#FCA5A5' }}>
+                {checkoutMessage}
+              </div>
+            )}
             {error && <div style={styles.error}>{error}</div>}
 
             <div style={styles.fieldGroup}>
-              <label style={styles.fieldLabel} htmlFor="industry-select">INDUSTRY</label>
+              <label style={styles.fieldLabel} htmlFor="industry-select">
+                INDUSTRY
+                <span style={styles.premiumBadge}>PREMIUM</span>
+              </label>
               <select
                 id="industry-select"
                 style={styles.select}
@@ -702,7 +914,10 @@ export default function Landing() {
             </div>
 
             <div style={styles.fieldGroup}>
-              <label style={styles.fieldLabel} htmlFor="role-select">ROLE</label>
+              <label style={styles.fieldLabel} htmlFor="role-select">
+                ROLE
+                <span style={styles.premiumBadge}>PREMIUM</span>
+              </label>
               <select
                 id="role-select"
                 style={styles.select}
@@ -747,6 +962,33 @@ export default function Landing() {
                 {loading ? '[ INITIALIZING... ]' : 'Full Assessment (~60 min)'}
               </button>
             </div>
+
+            {!user && (
+              <div style={styles.authLinks}>
+                <span style={styles.authPrompt}>Already have an account?</span>
+                <button
+                  style={styles.authLink}
+                  onClick={() => {
+                    clearPendingPremiumAssessment()
+                    setAuthMode('signin')
+                    setAuthModalOpen(true)
+                  }}
+                >
+                  Sign In
+                </button>
+                <span style={styles.authDivider}>·</span>
+                <button
+                  style={styles.authLink}
+                  onClick={() => {
+                    clearPendingPremiumAssessment()
+                    setAuthMode('signup')
+                    setAuthModalOpen(true)
+                  }}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -864,6 +1106,13 @@ export default function Landing() {
         <div style={styles.footer}>
           Powered by the PECAM Framework &mdash; Open Source (MIT + CC-BY-SA 4.0)
         </div>
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          mode={authMode}
+          intent={hasPremiumTaxonomySelection ? 'premium_assessment' : 'dashboard'}
+        />
+        <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
       </div>
     </div>
   )

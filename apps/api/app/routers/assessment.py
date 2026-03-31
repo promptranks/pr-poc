@@ -44,6 +44,8 @@ from app.services.badge_service import create_badge
 from app.services.scoring import aggregate_pillar_scores, assign_level, compute_final_score
 from app.services.redis_client import get_redis
 from app.services.leaderboard_service import update_score, LEVEL_NAMES
+from app.services.usage_service import UsageService
+from app.middleware.auth import get_current_user_optional
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -55,6 +57,8 @@ class StartAssessmentRequest(BaseModel):
     mode: str  # "quick" or "full"
     industry: str | None = None
     role: str | None = None
+    industry_id: str | None = None
+    role_id: str | None = None
 
 
 class QuestionOut(BaseModel):
@@ -164,6 +168,7 @@ class ResultsResponse(BaseModel):
     assessment_id: str
     mode: str
     status: str
+    results_locked: bool
     final_score: float
     level: int
     kba_score: float
@@ -195,10 +200,31 @@ class ClaimResponse(BaseModel):
 async def start_assessment(
     body: StartAssessmentRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Start a new assessment (quick or full). No auth required."""
     if body.mode not in ("quick", "full"):
         raise HTTPException(status_code=400, detail="mode must be 'quick' or 'full'")
+
+    # Check usage limits for full assessments
+    results_locked = False
+    if body.mode == "full":
+        if current_user:
+            tier = current_user.subscription_tier
+            if tier == "premium":
+                can_start, used, limit = await UsageService.check_limit(str(current_user.id), tier, db)
+                if not can_start:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Assessment limit reached ({used}/{limit}). Upgrade to Enterprise for unlimited access."
+                    )
+                await UsageService.increment_usage(str(current_user.id), tier, db)
+            elif tier == "free":
+                results_locked = True
+            # enterprise: no limit, results_locked stays False
+        else:
+            # Anonymous user: allow but lock results
+            results_locked = True
 
     # Select questions
     questions = await select_questions(db, body.mode)
@@ -215,14 +241,31 @@ async def start_assessment(
     expires_at = now + timedelta(seconds=time_limit)
 
     # Create assessment
+    industry_uuid = None
+    role_uuid = None
+    if body.industry_id:
+        try:
+            industry_uuid = uuid.UUID(body.industry_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid industry_id")
+    if body.role_id:
+        try:
+            role_uuid = uuid.UUID(body.role_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid role_id")
+
     assessment = Assessment(
         id=uuid.uuid4(),
+        user_id=current_user.id if current_user else None,
         mode=AssessmentMode(body.mode),
         status=AssessmentStatus.in_progress,
         industry=body.industry,
         role=body.role,
+        industry_id=industry_uuid,
+        role_id=role_uuid,
         started_at=now,
         expires_at=expires_at,
+        results_locked=results_locked,
         kba_responses={"question_ids": [str(q.id) for q in questions]},
     )
     db.add(assessment)
@@ -841,6 +884,37 @@ async def claim_assessment(
     # Generate badge
     badge = await create_badge(db, user, assessment)
 
+    # Backfill leaderboard entry for auth-last full assessments claimed after results were computed
+    mode_str = assessment.mode.value if isinstance(assessment.mode, AssessmentMode) else str(assessment.mode)
+    if (
+        mode_str == "full"
+        and assessment.status == AssessmentStatus.completed
+        and assessment.final_score is not None
+    ):
+        try:
+            redis = await get_redis()
+            level = assessment.level or 1
+            achieved_at = (
+                assessment.completed_at.isoformat()
+                if assessment.completed_at
+                else datetime.now(timezone.utc).isoformat()
+            )
+            await update_score(
+                redis=redis,
+                user_id=str(user.id),
+                score=assessment.final_score,
+                user_name=user.name or "",
+                level=level,
+                level_name=LEVEL_NAMES.get(level, "Novice"),
+                pillar_scores=assessment.pillar_scores or {},
+                badge_id=str(badge.id),
+                achieved_at=achieved_at,
+                industry_id=str(assessment.industry_id) if assessment.industry_id else None,
+                role_id=str(assessment.role_id) if assessment.role_id else None,
+            )
+        except Exception:
+            pass  # Leaderboard failure must not break badge claim
+
     # Create token
     token = create_access_token(user.id, user.email)
 
@@ -863,6 +937,7 @@ def _build_results_response(assessment: Assessment) -> ResultsResponse:
         assessment_id=str(assessment.id),
         mode=mode_str,
         status=status_str,
+        results_locked=assessment.results_locked or False,
         final_score=assessment.final_score or 0.0,
         level=assessment.level or 1,
         kba_score=assessment.kba_score or 0.0,

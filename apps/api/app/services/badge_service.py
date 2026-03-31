@@ -44,17 +44,14 @@ def _generate_radar_svg(pillar_scores: dict[str, Any], cx: float, cy: float, max
 
     parts: list[str] = []
 
-    # Grid polygons
     for level_pct in [20, 40, 60, 80, 100]:
         points = " ".join(f"{get_point(i, level_pct)[0]:.1f},{get_point(i, level_pct)[1]:.1f}" for i in range(5))
-        parts.append(f'<polygon points="{points}" fill="none" stroke="rgba(0,255,65,0.15)" stroke-width="0.5"/>')
+        parts.append(f'<polygon points="{points}" fill="none" stroke="rgba(0,255,65,0.14)" stroke-width="0.7"/>')
 
-    # Axis lines
     for i in range(5):
         x, y = get_point(i, 100)
-        parts.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="rgba(0,255,65,0.2)" stroke-width="0.5"/>')
+        parts.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="rgba(0,255,65,0.14)" stroke-width="0.7"/>')
 
-    # Data polygon
     data_points: list[tuple[float, float]] = []
     for i, p in enumerate(PILLARS):
         score_data = pillar_scores.get(p, {})
@@ -62,14 +59,13 @@ def _generate_radar_svg(pillar_scores: dict[str, Any], cx: float, cy: float, max
         data_points.append(get_point(i, score))
 
     data_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in data_points)
-    parts.append(f'<polygon points="{data_str}" fill="rgba(0,255,65,0.2)" stroke="#00ff41" stroke-width="1.5"/>')
+    parts.append('<filter id="glow"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>')
+    parts.append(f'<polygon points="{data_str}" fill="rgba(0,255,65,0.2)" stroke="#00ff41" stroke-width="1.8" filter="url(#glow)"/>')
 
-    # Data dots
     for x, y in data_points:
-        parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.5" fill="#00ff41"/>')
+        parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="#00ff41"/>')
 
-    # Labels
-    label_radius = max_radius + 14
+    label_radius = max_radius + 17
     for i, p in enumerate(PILLARS):
         angle = start_angle + i * angle_step
         lx = cx + label_radius * math.cos(angle)
@@ -77,12 +73,12 @@ def _generate_radar_svg(pillar_scores: dict[str, Any], cx: float, cy: float, max
         score_data = pillar_scores.get(p, {})
         score = round(float(score_data.get("combined", 0))) if isinstance(score_data, dict) else round(float(score_data))
         parts.append(
-            f'<text x="{lx:.1f}" y="{ly - 5:.1f}" text-anchor="middle" fill="#00ff41" '
-            f'font-size="9" font-family="monospace" font-weight="bold">{p}</text>'
+            f'<text x="{lx:.1f}" y="{ly - 6:.1f}" text-anchor="middle" fill="#00ff41" '
+            f'font-size="10" font-family="monospace" font-weight="bold">{p}</text>'
         )
         parts.append(
-            f'<text x="{lx:.1f}" y="{ly + 7:.1f}" text-anchor="middle" fill="#008f11" '
-            f'font-size="7" font-family="monospace">{score}%</text>'
+            f'<text x="{lx:.1f}" y="{ly + 8:.1f}" text-anchor="middle" fill="#66bf75" '
+            f'font-size="7" font-family="monospace">{score}</text>'
         )
 
     return "\n    ".join(parts)
@@ -109,43 +105,62 @@ def generate_badge_svg(
     domain = _get_badge_domain()
     verification_url = f"https://{domain}/badges/verify/{badge_id}"
     domain_label = domain
+    score_label = round(final_score)
+    radar = _generate_radar_svg(pillar_scores, 270, 172, 54)
 
-    # Radar chart centered at (200, 175), radius 55
-    radar = _generate_radar_svg(pillar_scores, 200, 175, 55)
-
-    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" width="400" height="320">
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320" width="520" height="320">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#001a00"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07140a"/>
+      <stop offset="55%" stop-color="#03070d"/>
       <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.08)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="{color}"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.35"/>
     </linearGradient>
   </defs>
 
-  <!-- Background -->
-  <rect width="400" height="320" rx="8" fill="url(#bg)" stroke="{color}" stroke-width="2"/>
+  <rect width="520" height="320" rx="24" fill="url(#bg)" stroke="{color}" stroke-width="2"/>
+  <rect x="18" y="18" width="484" height="284" rx="20" fill="none" stroke="rgba(255,255,255,0.07)"/>
 
-  <!-- Header -->
-  <text x="200" y="30" text-anchor="middle" fill="#00ff41" font-size="11" font-family="monospace" font-weight="bold" letter-spacing="3">PROMPTRANKS</text>
-  <text x="200" y="46" text-anchor="middle" fill="#008f11" font-size="8" font-family="monospace">{mode_label} Assessment</text>
+  <text x="34" y="40" fill="#00ff41" font-size="12" font-family="monospace" font-weight="bold" letter-spacing="3">PROMPTRANKS</text>
+  <text x="34" y="58" fill="#6db776" font-size="8" font-family="monospace">VERIFIABLE AI PROMPT SKILL BADGE</text>
 
-  <!-- Level badge -->
-  <rect x="135" y="55" width="130" height="28" rx="4" fill="none" stroke="{color}" stroke-width="1.5"/>
-  <text x="200" y="73" text-anchor="middle" fill="{color}" font-size="12" font-family="monospace" font-weight="bold">L{level} - {level_name}</text>
+  <rect x="34" y="84" width="160" height="162" rx="18" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+  <rect x="52" y="102" width="124" height="124" rx="26" fill="url(#panel)" stroke="url(#accent)" stroke-width="1.4"/>
+  <circle cx="114" cy="150" r="36" fill="rgba(0,0,0,0.3)" stroke="{color}" stroke-width="1.2"/>
+  <circle cx="100" cy="142" r="4" fill="{color}"/>
+  <circle cx="128" cy="142" r="4" fill="{color}"/>
+  <path d="M97 166 Q114 178 131 166" fill="none" stroke="{color}" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="114" y="264" text-anchor="middle" fill="#a1d7a8" font-size="8" font-family="monospace">AVATAR SLOT</text>
+  <text x="114" y="278" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="7" font-family="monospace">deterministic placeholder</text>
 
-  <!-- Score -->
-  <text x="200" y="100" text-anchor="middle" fill="{color}" font-size="24" font-family="monospace" font-weight="bold">{round(final_score)}</text>
-  <text x="200" y="112" text-anchor="middle" fill="#008f11" font-size="8" font-family="monospace">FINAL SCORE</text>
+  <rect x="214" y="84" width="272" height="40" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+  <text x="232" y="101" fill="#6db776" font-size="8" font-family="monospace">LEVEL</text>
+  <text x="232" y="116" fill="{color}" font-size="18" font-family="monospace" font-weight="bold">L{level} · {level_name}</text>
 
-  <!-- Radar chart -->
+  <rect x="214" y="134" width="124" height="54" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+  <text x="232" y="152" fill="#6db776" font-size="8" font-family="monospace">FINAL SCORE</text>
+  <text x="232" y="178" fill="{color}" font-size="28" font-family="monospace" font-weight="bold">{score_label}</text>
+
+  <rect x="350" y="134" width="136" height="54" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+  <text x="368" y="152" fill="#6db776" font-size="8" font-family="monospace">MODE</text>
+  <text x="368" y="178" fill="#f7f7ff" font-size="16" font-family="monospace" font-weight="bold">{mode_label}</text>
+
+  <rect x="214" y="198" width="272" height="82" rx="18" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
   <g>
     {radar}
   </g>
 
-  <!-- Footer -->
-  <line x1="20" y1="260" x2="380" y2="260" stroke="rgba(0,255,65,0.15)" stroke-width="0.5"/>
-  <text x="200" y="278" text-anchor="middle" fill="#008f11" font-size="7" font-family="monospace">Issued: {date_str}</text>
-  <text x="200" y="292" text-anchor="middle" fill="#008f11" font-size="6" font-family="monospace">Verify: {verification_url}</text>
-  <text x="200" y="308" text-anchor="middle" fill="rgba(0,255,65,0.3)" font-size="6" font-family="monospace">{domain_label}</text>
+  <line x1="34" y1="288" x2="486" y2="288" stroke="rgba(255,255,255,0.08)"/>
+  <text x="34" y="304" fill="#6db776" font-size="8" font-family="monospace">Issued {date_str}</text>
+  <text x="486" y="304" text-anchor="end" fill="rgba(255,255,255,0.42)" font-size="7" font-family="monospace">{domain_label}</text>
+  <text x="260" y="304" text-anchor="middle" fill="rgba(255,255,255,0.46)" font-size="7" font-family="monospace">Verify {verification_url}</text>
 </svg>'''
 
     return svg

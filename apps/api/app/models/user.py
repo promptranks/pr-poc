@@ -20,6 +20,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     subscription_tier = Column(String, default="free")  # free, pro, enterprise
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    avatar_url = Column(String, nullable=True)
+    oauth_provider = Column(String, nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

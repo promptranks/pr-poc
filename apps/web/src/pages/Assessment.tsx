@@ -6,6 +6,7 @@ import useAntiCheat from '../hooks/useAntiCheat'
 import KBA from './KBA'
 import type { KBAResult } from './KBA'
 import PPA from './PPA'
+import PSV from './PSV'
 import Results from './Results'
 
 interface AssessmentData {
@@ -152,7 +153,7 @@ const styles = {
   },
 }
 
-type Phase = 'kba' | 'ppa' | 'results'
+type Phase = 'kba' | 'ppa' | 'psv' | 'results'
 
 export default function Assessment() {
   const { id } = useParams<{ id: string }>()
@@ -191,6 +192,15 @@ export default function Assessment() {
   }, [])
 
   const handlePPAComplete = useCallback(() => {
+    // Full mode goes to PSV; quick mode goes straight to results
+    if (data?.mode === 'full') {
+      setPhase('psv')
+    } else {
+      setPhase('results')
+    }
+  }, [data?.mode])
+
+  const handlePSVComplete = useCallback(() => {
     setPhase('results')
   }, [])
 
@@ -237,7 +247,7 @@ export default function Assessment() {
           PPA
         </span>
         {data.mode === 'full' && (
-          <span style={styles.phaseInactive}>PSV</span>
+          <span style={phase === 'psv' ? styles.phaseActive : styles.phaseInactive}>PSV</span>
         )}
         <span style={phase === 'results' ? styles.phaseActive : styles.phaseInactive}>
           RESULTS
@@ -258,6 +268,13 @@ export default function Assessment() {
             assessmentId={data.assessment_id}
             mode={data.mode}
             onComplete={handlePPAComplete}
+          />
+        )}
+
+        {phase === 'psv' && (
+          <PSV
+            assessmentId={data.assessment_id}
+            onComplete={handlePSVComplete}
           />
         )}
 

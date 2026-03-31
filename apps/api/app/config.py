@@ -1,5 +1,6 @@
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -18,6 +19,13 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-change-in-production"
     access_token_expire_minutes: int = 60
 
+    # OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    oauth_redirect_url: str = "http://localhost:3000/auth/callback"
+
     # Content Registry (self-hosted only)
     promptranks_license_key: str = ""
     content_registry_url: str = "https://content.promptranks.org"
@@ -28,6 +36,17 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
     ]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("[") and value.endswith("]"):
+                import json
+                return json.loads(value)
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @property
     def effective_cors_origins(self) -> list[str]:

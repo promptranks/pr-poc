@@ -5,7 +5,10 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import RadarChart, { PILLAR_LABELS } from '../components/RadarChart'
+import PaywallModal from '../components/PaywallModal'
+import { useAuth } from '../contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -19,6 +22,7 @@ interface ResultsData {
   assessment_id: string
   mode: string
   status: string
+  results_locked: boolean
   final_score: number
   level: number
   kba_score: number
@@ -271,9 +275,31 @@ const styles = {
     marginTop: '1rem',
     cursor: 'pointer',
   },
+  ctaSection: {
+    display: 'flex',
+    gap: '1rem',
+    justifyContent: 'center',
+    marginTop: '2rem',
+    flexWrap: 'wrap' as const,
+  },
+  ctaButton: {
+    padding: '12px 24px',
+    borderRadius: 4,
+    border: '1px solid rgba(0,255,65,0.3)',
+    background: 'rgba(0,15,0,0.6)',
+    color: '#00ff41',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.55rem',
+    cursor: 'pointer',
+    letterSpacing: '1px',
+    textDecoration: 'none',
+    display: 'inline-block',
+  },
 }
 
 export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
+  const navigate = useNavigate()
+  const { token, isAuthenticated } = useAuth()
   const [results, setResults] = useState<ResultsData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -287,6 +313,7 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   const [claiming, setClaiming] = useState(false)
   const [claimError, setClaimError] = useState<string | null>(null)
   const [claimData, setClaimData] = useState<ClaimData | null>(null)
+  const [showPaywall, setShowPaywall] = useState(false)
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -298,6 +325,13 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
         }
         const data: ResultsData = await res.json()
         setResults(data)
+
+        // Show paywall if results are locked
+        if (data.results_locked) {
+          setShowPaywall(true)
+          setLoading(false)
+          return
+        }
 
         // Animate score from 0 to final
         const target = Math.round(data.final_score)
@@ -322,6 +356,40 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
     fetchResults()
   }, [assessmentId])
 
+  useEffect(() => {
+    if (!isAuthenticated || !token || claimData) return
+    if (!results || results.results_locked) return
+
+    const autoClaim = async () => {
+      setClaiming(true)
+      setClaimError(null)
+
+      try {
+        const res = await fetch(`${API_URL}/assessments/${assessmentId}/claim`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.detail || 'Claim failed')
+        }
+
+        const data: ClaimData = await res.json()
+        setClaimData(data)
+      } catch (err) {
+        setClaimError(err instanceof Error ? err.message : 'Unknown error')
+      } finally {
+        setClaiming(false)
+      }
+    }
+
+    void autoClaim()
+  }, [assessmentId, claimData, isAuthenticated, results, token])
+
   const handleClaim = async () => {
     setClaiming(true)
     setClaimError(null)
@@ -345,7 +413,6 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
 
       const data: ClaimData = await res.json()
       setClaimData(data)
-      // Store token for future use
       sessionStorage.setItem('auth_token', data.token)
     } catch (err) {
       setClaimError(err instanceof Error ? err.message : 'Unknown error')
@@ -360,6 +427,31 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
 
   if (error || !results) {
     return <div style={styles.error}>{error || 'Failed to load results'}</div>
+  }
+
+  // Show paywall if results are locked
+  if (results.results_locked) {
+    return (
+      <>
+        <div style={styles.container}>
+          <div style={styles.title}>ASSESSMENT COMPLETE</div>
+          <div style={styles.scoreCard}>
+            <div style={styles.mode}>{results.mode} mode</div>
+            <div style={styles.scoreLabel}>Your results are ready!</div>
+            <div style={{ fontSize: '1rem', color: '#008f11', marginTop: '1rem' }}>
+              Upgrade to Premium to unlock your full assessment results
+            </div>
+          </div>
+        </div>
+        <PaywallModal
+          isOpen={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onUpgrade={() => {
+            window.location.href = '/pricing'
+          }}
+        />
+      </>
+    )
   }
 
   const levelColor = LEVEL_COLORS[results.level] || '#00ff41'
@@ -437,12 +529,27 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
             dangerouslySetInnerHTML={{ __html: claimData.badge_svg }}
             style={{ margin: '1rem auto', maxWidth: 400 }}
           />
-          <a
-            href={`/badge/${claimData.badge_id}`}
-            style={styles.badgeLink}
-          >
-            View Badge
-          </a>
+          <div style={styles.ctaSection}>
+            <a href={`/badge/${claimData.badge_id}`} style={styles.badgeLink}>
+              View Badge
+            </a>
+            {results.mode === 'full' && (
+              <button onClick={() => navigate('/leaderboard')} style={styles.ctaButton}>
+                View Leaderboard
+              </button>
+            )}
+            <button onClick={() => navigate('/dashboard')} style={styles.ctaButton}>
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      ) : claiming ? (
+        <div style={styles.claimSection}>
+          <div style={styles.claimTitle}>Claiming your badge...</div>
+        </div>
+      ) : isAuthenticated ? (
+        <div style={styles.claimSection}>
+          <div style={styles.claimTitle}>Processing...</div>
         </div>
       ) : (
         <div style={styles.claimSection}>
