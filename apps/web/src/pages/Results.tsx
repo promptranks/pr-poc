@@ -353,6 +353,7 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({}),
         })
 
         if (!res.ok && res.status !== 409) {

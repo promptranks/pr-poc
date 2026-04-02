@@ -22,8 +22,11 @@ export default function AssessmentHistoryTable({ assessments }: AssessmentHistor
   }
 
   const handleRowClick = (assessment: Assessment) => {
+    // TODO: Create assessment detail page at /dashboard/assessment/:id
+    // For now, just navigate to results page if completed
     if (assessment.status === 'completed' && !assessment.results_locked) {
-      navigate(`/dashboard/assessment/${assessment.id}`)
+      // Navigate to results page instead since detail page doesn't exist yet
+      navigate(`/assessment/${assessment.id}`)
     }
   }
 
