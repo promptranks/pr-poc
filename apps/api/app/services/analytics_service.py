@@ -82,7 +82,15 @@ class AnalyticsService:
             return []
 
         pillar_scores = latest.pillar_scores
-        sorted_pillars = sorted(pillar_scores.items(), key=lambda x: x[1])
+        # Extract numeric scores from dict format {"score": 85} or direct numbers
+        numeric_scores = {}
+        for pillar, value in pillar_scores.items():
+            if isinstance(value, dict) and "score" in value:
+                numeric_scores[pillar] = value["score"]
+            elif isinstance(value, (int, float)):
+                numeric_scores[pillar] = value
+
+        sorted_pillars = sorted(numeric_scores.items(), key=lambda x: x[1])
         return [p[0] for p in sorted_pillars[:2]]
 
     @staticmethod
