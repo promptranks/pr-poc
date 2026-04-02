@@ -78,37 +78,49 @@ export default function AssessmentHistoryTable({ assessments }: AssessmentHistor
 }
 
 function getStatusStyle(status: string) {
-  const baseStyle = { padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }
-  if (status === 'completed') return { ...baseStyle, background: '#d4edda', color: '#155724' }
-  if (status === 'in_progress') return { ...baseStyle, background: '#fff3cd', color: '#856404' }
-  return { ...baseStyle, background: '#f8d7da', color: '#721c24' }
+  const baseStyle = {
+    padding: '0.25rem 0.5rem',
+    borderRadius: '4px',
+    fontSize: '0.8rem',
+    fontFamily: "'Courier New', monospace",
+  }
+  if (status === 'completed') return { ...baseStyle, background: 'transparent', color: '#00ff41', border: '1px solid #00ff41' }
+  if (status === 'in_progress') return { ...baseStyle, background: 'transparent', color: '#ffaa00', border: '1px solid #ffaa00' }
+  return { ...baseStyle, background: 'transparent', color: '#ff4444', border: '1px solid #ff4444' }
 }
 
 const styles = {
   table: {
     width: '100%',
     borderCollapse: 'collapse' as const,
-    marginTop: '20px',
+    marginTop: '1rem',
+    fontFamily: "'Courier New', monospace",
   },
   th: {
     textAlign: 'left' as const,
-    padding: '12px',
-    borderBottom: '2px solid #ddd',
+    padding: '0.75rem',
+    borderBottom: '1px solid #00ff41',
     fontWeight: 'bold' as const,
+    color: '#00ff41',
+    fontSize: '0.9rem',
   },
   tr: {
-    borderBottom: '1px solid #eee',
+    borderBottom: '1px solid #1a1a1a',
   },
   clickableRow: {
     cursor: 'pointer',
     transition: 'background-color 0.2s',
+    backgroundColor: 'transparent',
   },
   td: {
-    padding: '12px',
+    padding: '0.75rem',
+    color: '#00ff41',
+    fontSize: '0.9rem',
   },
   empty: {
     textAlign: 'center' as const,
-    color: '#666',
-    padding: '40px',
+    color: '#008f11',
+    padding: '2rem',
+    fontFamily: "'Courier New', monospace",
   },
 }

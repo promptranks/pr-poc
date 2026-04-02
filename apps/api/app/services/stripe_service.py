@@ -62,7 +62,7 @@ class StripeService:
             payment_method_types=["card"],
             line_items=[{"price": price_id, "quantity": 1}],
             mode="subscription",
-            success_url=frontend_url + "/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+            success_url=frontend_url + "/dashboard?session_id={CHECKOUT_SESSION_ID}",
             cancel_url=frontend_url + "/?checkout=cancelled",
             metadata={"user_id": str(user_id), "plan": plan},
         )

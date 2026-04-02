@@ -42,12 +42,12 @@ export default function AnalyticsCharts({ scoreTrend, pillarComparison }: Analyt
         <h3 style={styles.chartTitle}>Score Trend</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={lineData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+            <XAxis dataKey="date" stroke="#00ff41" />
+            <YAxis domain={[0, 100]} stroke="#00ff41" />
+            <Tooltip contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid #00ff41', color: '#00ff41' }} />
             <Legend />
-            <Line type="monotone" dataKey="score" stroke="#007bff" strokeWidth={2} />
+            <Line type="monotone" dataKey="score" stroke="#00ff41" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -56,11 +56,11 @@ export default function AnalyticsCharts({ scoreTrend, pillarComparison }: Analyt
         <h3 style={styles.chartTitle}>Pillar Comparison</h3>
         <ResponsiveContainer width="100%" height={300}>
           <RadarChart data={radarData}>
-            <PolarGrid />
-            <PolarAngleAxis dataKey="pillar" />
-            <PolarRadiusAxis domain={[0, 100]} />
-            <Radar name="Latest" dataKey="latest" stroke="#007bff" fill="#007bff" fillOpacity={0.6} />
-            <Radar name="Average" dataKey="average" stroke="#28a745" fill="#28a745" fillOpacity={0.3} />
+            <PolarGrid stroke="#1a1a1a" />
+            <PolarAngleAxis dataKey="pillar" stroke="#00ff41" />
+            <PolarRadiusAxis domain={[0, 100]} stroke="#00ff41" />
+            <Radar name="Latest" dataKey="latest" stroke="#00ff41" fill="#00ff41" fillOpacity={0.3} />
+            <Radar name="Average" dataKey="average" stroke="#008f11" fill="#008f11" fillOpacity={0.2} />
             <Legend />
           </RadarChart>
         </ResponsiveContainer>
@@ -73,23 +73,29 @@ const styles = {
   container: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '20px',
-    marginTop: '20px',
+    gap: '1.5rem',
+    marginTop: '1.5rem',
   },
   chartSection: {
-    background: '#f8f9fa',
-    padding: '20px',
-    borderRadius: '8px',
+    background: '#1a1a1a',
+    padding: '1.5rem',
+    borderRadius: '4px',
+    border: '1px solid #00ff41',
   },
   chartTitle: {
-    fontSize: '18px',
-    marginBottom: '15px',
+    fontSize: '1.2rem',
+    marginBottom: '1rem',
+    color: '#00ff41',
+    fontFamily: "'Courier New', monospace",
+    fontWeight: 'bold' as const,
   },
   notice: {
-    padding: '20px',
-    background: '#fff3cd',
-    borderRadius: '8px',
-    color: '#856404',
+    padding: '1.5rem',
+    background: '#1a1a1a',
+    borderRadius: '4px',
+    border: '1px solid #00ff41',
+    color: '#008f11',
     textAlign: 'center' as const,
+    fontFamily: "'Courier New', monospace",
   },
 }
