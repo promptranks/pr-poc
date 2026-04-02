@@ -214,8 +214,8 @@ class ResultsResponse(BaseModel):
 
 
 class ClaimRequest(BaseModel):
-    email: str
-    password: str
+    email: str | None = None
+    password: str | None = None
     name: str = ""
     is_login: bool = False  # True = login existing user, False = register new
 
@@ -905,6 +905,7 @@ async def claim_assessment(
     assessment_id: str,
     body: ClaimRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> ClaimResponse:
     """Claim a completed assessment: register or login, link to user, generate badge."""
     # Load assessment
@@ -918,7 +919,7 @@ async def claim_assessment(
 
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    if assessment.status != AssessmentStatus.completed:
+    if assessment.status != "completed":
         raise HTTPException(status_code=400, detail="Assessment is not completed")
 
     # Check if already claimed (badge exists for this assessment)
@@ -926,22 +927,30 @@ async def claim_assessment(
     if existing_badge.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="Assessment already claimed")
 
-    # Authenticate or register user
-    if body.is_login:
-        user = await get_user_by_email(db, body.email)
-        if user is None:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        if not verify_password(body.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Determine user: either authenticated user or authenticate via body
+    user = None
+    if current_user:
+        # Simplified flow: authenticated user claiming badge
+        user = current_user
+    elif body.email and body.password:
+        # Old flow: authenticate or register user via email/password
+        if body.is_login:
+            user = await get_user_by_email(db, body.email)
+            if user is None:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            if not verify_password(body.password, user.password_hash):
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+        else:
+            # Register new user
+            existing = await get_user_by_email(db, body.email)
+            if existing is not None:
+                raise HTTPException(status_code=409, detail="Email already registered. Use is_login=true to login.")
+            if len(body.password) < 8:
+                raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+            name = body.name if body.name else body.email.split("@")[0]
+            user = await create_user(db, body.email, name, body.password)
     else:
-        # Register new user
-        existing = await get_user_by_email(db, body.email)
-        if existing is not None:
-            raise HTTPException(status_code=409, detail="Email already registered. Use is_login=true to login.")
-        if len(body.password) < 8:
-            raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-        name = body.name if body.name else body.email.split("@")[0]
-        user = await create_user(db, body.email, name, body.password)
+        raise HTTPException(status_code=401, detail="Authentication required: provide token or email/password")
 
     # Link assessment to user
     assessment.user_id = user.id

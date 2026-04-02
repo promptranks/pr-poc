@@ -150,7 +150,7 @@ async def get_unclaimed_badges(
         select(Assessment)
         .where(
             Assessment.user_id == current_user.id,
-            Assessment.status == AssessmentStatus.completed,
+            Assessment.status == "completed",
             Assessment.badge_claimed == False
         )
         .order_by(Assessment.completed_at.desc())

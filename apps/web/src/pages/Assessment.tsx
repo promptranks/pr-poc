@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import Timer from '../components/Timer'
 import TabLock from '../components/TabLock'
 import useAntiCheat from '../hooks/useAntiCheat'
@@ -158,13 +158,11 @@ type Phase = 'kba' | 'ppa' | 'psv' | 'results'
 export default function Assessment() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [data, setData] = useState<AssessmentData | null>(null)
   const [phase, setPhase] = useState<Phase>('kba')
   const [expired, setExpired] = useState(false)
   const [_kbaResult, setKbaResult] = useState<KBAResult | null>(null)
-
-  // Suppress unused warning - setData will be used when we implement assessment fetching
-  void setData
 
   const { violations, isVoided, showWarning, dismissWarning } = useAntiCheat({
     assessmentId: id || '',
@@ -172,12 +170,20 @@ export default function Assessment() {
   })
 
   useEffect(() => {
-    // Assessment data is now managed by the backend via pending_assessments
-    // No need to check sessionStorage - just verify we have an ID
+    // Load assessment data from navigation state
     if (!id) {
       navigate('/')
+      return
     }
-  }, [id, navigate])
+
+    const stateData = location.state as AssessmentData | null
+    if (stateData) {
+      setData(stateData)
+    } else {
+      // No data in state - redirect back to landing
+      navigate('/')
+    }
+  }, [id, location.state, navigate])
 
   const handleExpire = useCallback(() => {
     setExpired(true)

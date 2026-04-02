@@ -597,6 +597,8 @@ export default function Landing() {
   const startAssessmentRequest = async (mode: 'quick' | 'full') => {
     const sessionId = getOrCreateSessionId()
 
+    console.log('[Landing] Starting assessment request:', { mode, sessionId, industry: selectedIndustry?.name, role: selectedRole?.name })
+
     const res = await fetch(`${API_BASE}/assessments/start`, {
       method: 'POST',
       headers: {
@@ -613,6 +615,8 @@ export default function Landing() {
       }),
     })
 
+    console.log('[Landing] Assessment start response status:', res.status)
+
     if (res.status === 402) {
       // Premium required
       throw new Error('PREMIUM_REQUIRED')
@@ -624,7 +628,16 @@ export default function Landing() {
     }
 
     const data = await res.json()
-    navigate(`/assessment/${data.assessment_id}`)
+    console.log('[Landing] Assessment start response data:', data)
+    console.log('[Landing] Navigating to:', `/assessment/${data.assessment_id}`)
+    navigate(`/assessment/${data.assessment_id}`, {
+      state: {
+        assessment_id: data.assessment_id,
+        mode: data.mode,
+        expires_at: data.expires_at,
+        questions: data.questions,
+      }
+    })
   }
 
   useEffect(() => {

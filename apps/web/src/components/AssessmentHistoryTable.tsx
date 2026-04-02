@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom'
+
 interface Assessment {
   id: string
   mode: string
@@ -13,8 +15,16 @@ interface AssessmentHistoryTableProps {
 }
 
 export default function AssessmentHistoryTable({ assessments }: AssessmentHistoryTableProps) {
+  const navigate = useNavigate()
+
   if (assessments.length === 0) {
     return <p style={styles.empty}>No assessments yet. Start your first assessment!</p>
+  }
+
+  const handleRowClick = (assessment: Assessment) => {
+    if (assessment.status === 'completed' && !assessment.results_locked) {
+      navigate(`/dashboard/assessment/${assessment.id}`)
+    }
   }
 
   return (
@@ -29,29 +39,39 @@ export default function AssessmentHistoryTable({ assessments }: AssessmentHistor
         </tr>
       </thead>
       <tbody>
-        {assessments.map((assessment) => (
-          <tr key={assessment.id} style={styles.tr}>
-            <td style={styles.td}>
-              {assessment.completed_at
-                ? new Date(assessment.completed_at).toLocaleDateString()
-                : 'In Progress'}
-            </td>
-            <td style={styles.td}>
-              {assessment.mode === 'quick' ? 'Quick' : 'Full'}
-            </td>
-            <td style={styles.td}>
-              {assessment.results_locked ? '🔒 Locked' : assessment.final_score?.toFixed(1) || '-'}
-            </td>
-            <td style={styles.td}>
-              {assessment.results_locked ? '-' : assessment.level || '-'}
-            </td>
-            <td style={styles.td}>
-              <span style={getStatusStyle(assessment.status)}>
-                {assessment.status.replace('_', ' ')}
-              </span>
-            </td>
-          </tr>
-        ))}
+        {assessments.map((assessment) => {
+          const isClickable = assessment.status === 'completed' && !assessment.results_locked
+          return (
+            <tr
+              key={assessment.id}
+              style={{
+                ...styles.tr,
+                ...(isClickable ? styles.clickableRow : {}),
+              }}
+              onClick={() => handleRowClick(assessment)}
+            >
+              <td style={styles.td}>
+                {assessment.completed_at
+                  ? new Date(assessment.completed_at).toLocaleDateString()
+                  : 'In Progress'}
+              </td>
+              <td style={styles.td}>
+                {assessment.mode === 'quick' ? 'Quick' : 'Full'}
+              </td>
+              <td style={styles.td}>
+                {assessment.results_locked ? '🔒 Locked' : assessment.final_score?.toFixed(1) || '-'}
+              </td>
+              <td style={styles.td}>
+                {assessment.results_locked ? '-' : assessment.level || '-'}
+              </td>
+              <td style={styles.td}>
+                <span style={getStatusStyle(assessment.status)}>
+                  {assessment.status.replace('_', ' ')}
+                </span>
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -78,6 +98,10 @@ const styles = {
   },
   tr: {
     borderBottom: '1px solid #eee',
+  },
+  clickableRow: {
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
   },
   td: {
     padding: '12px',

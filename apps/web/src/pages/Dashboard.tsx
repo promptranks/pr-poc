@@ -97,6 +97,35 @@ export default function Dashboard() {
     const refreshAfterCheckout = async () => {
       setRefreshMessage('Finalizing your premium upgrade...')
 
+      // First, try to sync subscription from Stripe
+      try {
+        const syncRes = await fetch(`${API_URL}/payments/sync-subscription`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+        })
+
+        if (syncRes.ok) {
+          const syncData = await syncRes.json()
+          if (syncData.subscription_tier === 'premium') {
+            // Successfully synced, refresh dashboard
+            await fetchDashboard({ keepLoading: false })
+            sessionStorage.setItem('pending_subscription_upgrade', 'completed')
+            setRefreshMessage('')
+            const nextParams = new URLSearchParams(searchParams)
+            nextParams.delete('session_id')
+            setSearchParams(nextParams, { replace: true })
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Sync failed, falling back to polling:', err)
+      }
+
+      // Fallback: poll dashboard endpoint
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const dashboardData = await fetchDashboard({ keepLoading: attempt === 0 })
 

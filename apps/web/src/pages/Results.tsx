@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import RadarChart, { PILLAR_LABELS } from '../components/RadarChart'
 import PaywallModal from '../components/PaywallModal'
+import AuthModal from '../components/AuthModal'
 import { useAuth } from '../contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -297,6 +298,7 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
   const [loading, setLoading] = useState(true)
   const [scoreAnimated, setScoreAnimated] = useState(0)
   const [showPaywall, setShowPaywall] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -356,6 +358,9 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
         if (!res.ok && res.status !== 409) {
           // 409 means already claimed, which is fine
           console.error('Auto-claim failed')
+        } else {
+          // Successfully claimed, navigate to dashboard
+          navigate('/dashboard')
         }
       } catch (err) {
         // Silently fail for auto-claim
@@ -364,7 +369,7 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
     }
 
     void autoClaim()
-  }, [assessmentId, isAuthenticated, results, token])
+  }, [assessmentId, isAuthenticated, results, token, navigate])
 
   if (loading) {
     return <div style={styles.loading}>[ COMPUTING RESULTS... ]</div>
@@ -491,13 +496,21 @@ export default function Results({ assessmentId, mode: _mode }: ResultsProps) {
             Create an account to track your progress and claim your achievement badge
           </p>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => setShowAuthModal(true)}
             style={styles.ctaButton}
           >
             Sign In
           </button>
         </div>
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        mode="signin"
+        intent="dashboard"
+      />
     </div>
   )
 }

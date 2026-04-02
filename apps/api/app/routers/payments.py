@@ -20,6 +20,69 @@ class CheckoutRequest(BaseModel):
     plan: Literal["premium_monthly", "premium_annual"]
 
 
+class SyncSubscriptionRequest(BaseModel):
+    session_id: str
+
+
+@router.post("/sync-subscription")
+async def sync_subscription(
+    request: SyncSubscriptionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually sync subscription status from Stripe (for sandbox/local testing)."""
+    import logging
+    from datetime import datetime, timezone
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Retrieve the checkout session from Stripe
+        session = stripe.checkout.Session.retrieve(request.session_id)
+
+        logger.info(f"Sync: Retrieved session {session.id}, status: {session.payment_status}, subscription: {session.subscription}")
+
+        # Check if payment was successful and subscription exists
+        if session.payment_status == "paid" and session.subscription:
+            # Update user subscription
+            current_user.subscription_tier = "premium"
+            current_user.updated_at = datetime.now(timezone.utc)
+
+            # Update or create stripe customer record
+            result = await db.execute(
+                select(StripeCustomer).where(StripeCustomer.user_id == current_user.id)
+            )
+            stripe_customer = result.scalar_one_or_none()
+
+            if stripe_customer:
+                stripe_customer.stripe_subscription_id = session.subscription
+                if hasattr(stripe_customer, "updated_at"):
+                    stripe_customer.updated_at = datetime.now(timezone.utc)
+
+            await db.commit()
+
+            logger.info(f"Sync: Updated user {current_user.email} to premium tier")
+
+            return {
+                "status": "success",
+                "subscription_tier": "premium",
+                "message": "Subscription synced successfully"
+            }
+        else:
+            return {
+                "status": "pending",
+                "subscription_tier": current_user.subscription_tier,
+                "message": "Payment not completed or subscription not found"
+            }
+
+    except stripe.error.StripeError as e:
+        logger.error(f"Sync: Stripe error - {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Sync: Unexpected error - {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
 @router.post("/create-checkout")
 async def create_checkout(
     request: CheckoutRequest,
