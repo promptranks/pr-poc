@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom'
+
 interface Assessment {
   id: string
   mode: string
@@ -13,10 +15,16 @@ interface AssessmentHistoryTableProps {
 }
 
 export default function AssessmentHistoryTable({ assessments }: AssessmentHistoryTableProps) {
-  // TODO: Add assessment detail view functionality
+  const navigate = useNavigate()
 
   if (assessments.length === 0) {
     return <p style={styles.empty}>No assessments yet. Start your first assessment!</p>
+  }
+
+  const handleRowClick = (assessment: Assessment) => {
+    if (assessment.status === 'completed' && !assessment.results_locked) {
+      navigate(`/dashboard/assessment/${assessment.id}`)
+    }
   }
 
   return (
@@ -32,10 +40,15 @@ export default function AssessmentHistoryTable({ assessments }: AssessmentHistor
       </thead>
       <tbody>
         {assessments.map((assessment) => {
+          const isClickable = assessment.status === 'completed' && !assessment.results_locked
           return (
             <tr
               key={assessment.id}
-              style={styles.tr}
+              style={{
+                ...styles.tr,
+                ...(isClickable ? styles.clickableRow : {}),
+              }}
+              onClick={() => handleRowClick(assessment)}
             >
               <td style={styles.td}>
                 {assessment.completed_at

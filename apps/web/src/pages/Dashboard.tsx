@@ -65,7 +65,7 @@ export default function Dashboard() {
       // Auto-claim all unclaimed badges
       for (const badge of unclaimedBadges) {
         try {
-          await fetch(`${API_URL}/assessments/${badge.assessment_id}/claim`, {
+          const res = await fetch(`${API_URL}/assessments/${badge.assessment_id}/claim`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -73,6 +73,10 @@ export default function Dashboard() {
             },
             body: JSON.stringify({}),
           })
+          // 409 means already claimed, which is fine - just ignore it
+          if (!res.ok && res.status !== 409) {
+            console.error('Failed to claim badge:', res.status)
+          }
         } catch (err) {
           console.error('Failed to claim badge:', err)
         }
