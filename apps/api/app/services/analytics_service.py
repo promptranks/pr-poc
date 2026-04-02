@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -14,7 +14,7 @@ class AnalyticsService:
             select(Assessment)
             .where(
                 Assessment.user_id == user_id,
-                Assessment.status == "completed",
+                cast(Assessment.status, String) == "completed",
                 Assessment.final_score.isnot(None)
             )
             .order_by(Assessment.completed_at)
@@ -36,7 +36,7 @@ class AnalyticsService:
             select(Assessment)
             .where(
                 Assessment.user_id == user_id,
-                Assessment.status == "completed",
+                cast(Assessment.status, String) == "completed",
                 Assessment.final_score.isnot(None)
             )
             .order_by(Assessment.completed_at.desc())
@@ -51,8 +51,15 @@ class AnalyticsService:
 
         avg_pillars = {}
         for pillar in ["P", "E", "C", "A", "M"]:
-            scores = [a.pillar_scores.get(pillar) for a in assessments
-                     if a.pillar_scores and a.pillar_scores.get(pillar) is not None]
+            scores = []
+            for a in assessments:
+                if a.pillar_scores and pillar in a.pillar_scores:
+                    score_value = a.pillar_scores[pillar]
+                    # Handle both dict format {"score": 85} and direct number format
+                    if isinstance(score_value, dict) and "score" in score_value:
+                        scores.append(score_value["score"])
+                    elif isinstance(score_value, (int, float)):
+                        scores.append(score_value)
             avg_pillars[pillar] = sum(scores) / len(scores) if scores else 0
 
         return {"latest": latest_pillars, "average": avg_pillars}
@@ -63,7 +70,7 @@ class AnalyticsService:
             select(Assessment)
             .where(
                 Assessment.user_id == user_id,
-                Assessment.status == "completed",
+                cast(Assessment.status, String) == "completed",
                 Assessment.final_score.isnot(None)
             )
             .order_by(Assessment.completed_at.desc())

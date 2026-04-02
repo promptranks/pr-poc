@@ -376,10 +376,10 @@ async def submit_kba(
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    if assessment.status == AssessmentStatus.expired:
+    if assessment.status == "expired":
         raise HTTPException(status_code=400, detail="Assessment has expired")
 
-    if assessment.status == AssessmentStatus.voided:
+    if assessment.status == "voided":
         raise HTTPException(status_code=400, detail="Assessment has been voided")
 
     if assessment.kba_score is not None:
@@ -440,7 +440,7 @@ async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
         raise HTTPException(status_code=400, detail="Assessment has expired")
     if assessment.status == AssessmentStatus.voided:
         raise HTTPException(status_code=400, detail="Assessment has been voided")
-    if assessment.status == AssessmentStatus.completed:
+    if assessment.status == "completed":
         raise HTTPException(status_code=400, detail="Assessment already completed")
     if check_timer_expired(assessment):
         await expire_assessment(db, assessment)
