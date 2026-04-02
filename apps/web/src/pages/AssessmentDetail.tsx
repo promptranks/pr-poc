@@ -52,7 +52,7 @@ export default function AssessmentDetail() {
 
     const fetchDetail = async () => {
       try {
-        const res = await fetch(`${API_URL}/dashboard/assessments/${id}`, {
+        const res = await fetch(`${API_URL}/dashboard/assessments/${id}/details`, {
           headers: { Authorization: `Bearer ${token}` },
         })
 
