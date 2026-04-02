@@ -71,6 +71,7 @@ export default function Dashboard() {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
+            body: JSON.stringify({}),
           })
         } catch (err) {
           console.error('Failed to claim badge:', err)
