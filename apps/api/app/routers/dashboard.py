@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from typing import Optional
 from uuid import UUID
 
@@ -150,7 +150,7 @@ async def get_unclaimed_badges(
         select(Assessment)
         .where(
             Assessment.user_id == current_user.id,
-            Assessment.status == "completed",
+            cast(Assessment.status, String) == "completed",
             Assessment.badge_claimed == False
         )
         .order_by(Assessment.completed_at.desc())
