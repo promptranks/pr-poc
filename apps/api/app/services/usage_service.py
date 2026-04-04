@@ -48,14 +48,28 @@ class UsageService:
             db.add(usage)
             await db.commit()
             await db.refresh(usage)
+        else:
+            # Always sync limit with current tier (fixes premium users with old limit=0)
+            if usage.full_assessments_limit != limit:
+                usage.full_assessments_limit = limit
+                usage.updated_at = datetime.now(timezone.utc)
+                await db.commit()
+                await db.refresh(usage)
 
         return usage
 
     @staticmethod
     async def check_limit(user_id: str, tier: str, db: AsyncSession) -> Tuple[bool, int, int]:
         usage = await UsageService.get_or_create_usage(user_id, tier, db)
-        can_access = usage.full_assessments_used < usage.full_assessments_limit
-        return can_access, usage.full_assessments_used, usage.full_assessments_limit
+
+        if tier == "free":
+            # Free users get 1 trial attempt for premium features
+            can_access = usage.full_assessments_used < 1
+            return can_access, usage.full_assessments_used, 1
+        else:
+            # Premium/enterprise use normal limits
+            can_access = usage.full_assessments_used < usage.full_assessments_limit
+            return can_access, usage.full_assessments_used, usage.full_assessments_limit
 
     @staticmethod
     async def increment_usage(user_id: str, tier: str, db: AsyncSession) -> None:

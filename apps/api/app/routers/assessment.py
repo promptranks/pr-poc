@@ -46,7 +46,7 @@ from app.services.scoring import aggregate_pillar_scores, assign_level, compute_
 from app.services.redis_client import get_redis
 from app.services.leaderboard_service import update_score, LEVEL_NAMES
 from app.services.usage_service import UsageService
-from app.middleware.auth import get_current_user_optional
+from app.middleware.auth import get_current_user_optional, get_current_user
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -128,10 +128,12 @@ class PillarScoreOut(BaseModel):
 
 
 class SubmitKBAResponse(BaseModel):
-    kba_score: float
-    total_correct: int
-    total_questions: int
-    pillar_scores: dict[str, PillarScoreOut]
+    kba_score: float | None = None
+    total_correct: int | None = None
+    total_questions: int | None = None
+    pillar_scores: dict[str, PillarScoreOut] | None = None
+    results_locked: bool | None = None
+    message: str | None = None
 
 
 class PPAExecuteRequest(BaseModel):
@@ -265,21 +267,51 @@ async def start_assessment(
                 detail="Premium subscription required for this industry/role combination"
             )
 
-    # Check usage limits for full assessments
+    # Check usage limits for premium features
     results_locked = False
-    if body.mode == "full":
+
+    # Determine if premium features are used
+    premium_features_used = (
+        body.mode == "full" or
+        body.industry_id is not None or
+        body.role_id is not None
+    )
+
+    if premium_features_used:
         if current_user:
             tier = current_user.subscription_tier
+
             if tier == "premium":
-                can_start, used, limit = await UsageService.check_limit(str(current_user.id), tier, db)
+                # Premium users: check limit and increment
+                can_start, used, limit = await UsageService.check_limit(
+                    str(current_user.id), tier, db
+                )
                 if not can_start:
                     raise HTTPException(
                         status_code=403,
                         detail=f"Assessment limit reached ({used}/{limit}). Upgrade to Enterprise for unlimited access."
                     )
                 await UsageService.increment_usage(str(current_user.id), tier, db)
+
             elif tier == "free":
+                # Free users: check 1 trial limit
+                can_start, used, limit = await UsageService.check_limit(
+                    str(current_user.id), tier, db
+                )
+                if not can_start:
+                    raise HTTPException(
+                        status_code=402,
+                        detail={
+                            "message": "Free trial used. Upgrade to Premium for 3 full assessments per month.",
+                            "used": used,
+                            "limit": limit,
+                            "upgrade_required": True
+                        }
+                    )
+                # Allow this attempt but lock results
+                await UsageService.increment_usage(str(current_user.id), tier, db)
                 results_locked = True
+
             # enterprise: no limit, results_locked stays False
         else:
             # Anonymous user: allow but lock results
@@ -362,19 +394,12 @@ async def submit_kba(
     assessment_id: str,
     body: SubmitKBARequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit KBA answers. Returns score + per-pillar breakdown."""
-    # Load assessment
-    try:
-        aid = uuid.UUID(assessment_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid assessment ID")
-
-    result = await db.execute(select(Assessment).where(Assessment.id == aid))
-    assessment = result.scalar_one_or_none()
-
-    if assessment is None:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    # Load assessment and verify ownership
+    assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment.status == "expired":
         raise HTTPException(status_code=400, detail="Assessment has expired")
@@ -411,6 +436,13 @@ async def submit_kba(
     assessment.pillar_scores = kba_result["pillar_scores"]
     await db.commit()
 
+    # Check if results are locked
+    if assessment.results_locked:
+        return {
+            "message": "KBA completed. Upgrade to Premium to view your scores.",
+            "results_locked": True
+        }
+
     return SubmitKBAResponse(
         kba_score=kba_result["total_score"],
         total_correct=kba_result["total_correct"],
@@ -422,6 +454,50 @@ async def submit_kba(
 
 
 # --- Helper to load + validate assessment ---
+
+
+async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
+    """Load assessment by ID or raise 404."""
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    return assessment
+
+
+async def _verify_assessment_ownership(
+    assessment: Assessment,
+    current_user: User | None
+) -> None:
+    """Verify user owns assessment or raise 403.
+
+    Anonymous assessments (user_id=None) can be accessed without auth.
+    User-owned assessments require authentication and ownership verification.
+    """
+    # Allow anonymous assessments to be accessed without auth
+    if assessment.user_id is None:
+        return
+
+    # Require authentication for user-owned assessments
+    if current_user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to access this assessment"
+        )
+
+    # Verify ownership
+    if assessment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this assessment"
+        )
 
 
 async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
@@ -456,9 +532,11 @@ async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
 async def get_ppa_tasks(
     assessment_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Get PPA tasks for the assessment. Selects tasks on first call, returns cached on subsequent calls."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     # Check KBA is done
     if assessment.kba_score is None:
@@ -497,9 +575,11 @@ async def execute_ppa(
     assessment_id: str,
     body: PPAExecuteRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Execute a user prompt against a PPA task. Returns LLM output (not judge scores)."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment.kba_score is None:
         raise HTTPException(status_code=400, detail="KBA must be completed before PPA")
@@ -550,6 +630,13 @@ async def execute_ppa(
     flag_modified(assessment, "ppa_responses")
     await db.commit()
 
+    # Check if results are locked before returning output
+    if assessment.results_locked:
+        return {
+            "message": "Task completed. Upgrade to Premium to view results.",
+            "results_locked": True
+        }
+
     return PPAExecuteResponse(
         task_id=body.task_id,
         attempt_number=attempt_number,
@@ -564,9 +651,11 @@ async def submit_best_attempt(
     assessment_id: str,
     body: PPASubmitBestRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit best attempt for judging. Returns 5-dimension scores."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
@@ -652,9 +741,14 @@ async def submit_best_attempt(
 
 
 @router.get("/{assessment_id}/psv/sample", response_model=PSVSampleResponse)
-async def get_psv_sample(assessment_id: str, db: AsyncSession = Depends(get_db)):
+async def get_psv_sample(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+):
     """Get a PSV sample for evaluation (full mode only)."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
@@ -697,9 +791,11 @@ async def submit_psv(
     assessment_id: str,
     body: PSVSubmitRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit PSV evaluation (full mode only). Compares user's level against ground truth."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
@@ -735,6 +831,13 @@ async def submit_psv(
     }
     flag_modified(assessment, "psv_submission")
     await db.commit()
+
+    # Check if results are locked
+    if assessment.results_locked:
+        return {
+            "message": "PSV completed. Upgrade to Premium to view your score.",
+            "results_locked": True
+        }
 
     return PSVSubmitResponse(
         psv_score=psv_score,
@@ -806,6 +909,7 @@ async def report_violation(
 async def get_results(
     assessment_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Get assessment results. Computes final score and marks as completed on first call."""
     try:
@@ -815,6 +919,12 @@ async def get_results(
 
     result = await db.execute(select(Assessment).where(Assessment.id == aid))
     assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Verify ownership
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")

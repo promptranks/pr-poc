@@ -307,6 +307,13 @@ export default function PPA({ assessmentId, mode, onComplete }: PPAProps) {
         throw new Error(data.detail || 'Execution failed')
       }
       const data = await res.json()
+
+      // Check if results are locked
+      if (data.results_locked) {
+        alert('✓ Task completed. Upgrade to Premium to view results.')
+        return
+      }
+
       const newAttempt: Attempt = {
         attempt: data.attempt_number,
         prompt,

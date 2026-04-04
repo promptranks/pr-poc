@@ -160,6 +160,15 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     elif event["type"] == "customer.subscription.deleted":
         logger.info("Webhook: Processing customer.subscription.deleted")
         await StripeService.handle_subscription_deleted(event["data"]["object"], db)
+    elif event["type"] == "invoice.payment_failed":
+        logger.info("Webhook: Processing invoice.payment_failed")
+        await StripeService.handle_payment_failed(event["data"]["object"], db)
+    elif event["type"] == "invoice.payment_succeeded":
+        logger.info("Webhook: Processing invoice.payment_succeeded")
+        await StripeService.handle_invoice_paid(event["data"]["object"], db)
+    elif event["type"] == "customer.subscription.updated":
+        logger.info("Webhook: Processing customer.subscription.updated")
+        await StripeService.handle_subscription_updated(event["data"]["object"], db)
     else:
         logger.info(f"Webhook: Unhandled event type: {event['type']}")
 
