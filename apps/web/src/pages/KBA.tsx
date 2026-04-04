@@ -175,9 +175,15 @@ export default function KBA({ assessmentId, questions, onComplete }: KBAProps) {
 
       // Check if results are locked
       if (result.results_locked) {
-        // Show completion message without scores
-        alert('✓ Section completed. Upgrade to Premium to view your scores.')
-        onComplete({ kba_score: 0, total_correct: 0, total_questions: questions.length, pillar_scores: {} })
+        // Pass locked result to parent - let Assessment.tsx handle the upgrade message
+        onComplete({
+          kba_score: 0,
+          total_correct: 0,
+          total_questions: questions.length,
+          pillar_scores: {},
+          results_locked: true,
+          message: result.message || 'You are assessing with premium features. Upgrade to Premium to view your scores.'
+        })
       } else {
         onComplete(result as KBAResult)
       }
