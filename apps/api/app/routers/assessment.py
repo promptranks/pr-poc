@@ -397,9 +397,8 @@ async def submit_kba(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit KBA answers. Returns score + per-pillar breakdown."""
-    # Load assessment and verify ownership
+    # Load assessment (no ownership check - allow anonymous completion)
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment.status == "expired":
         raise HTTPException(status_code=400, detail="Assessment has expired")
@@ -536,7 +535,7 @@ async def get_ppa_tasks(
 ):
     """Get PPA tasks for the assessment. Selects tasks on first call, returns cached on subsequent calls."""
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous completion
 
     # Check KBA is done
     if assessment.kba_score is None:
@@ -579,7 +578,7 @@ async def execute_ppa(
 ):
     """Execute a user prompt against a PPA task. Returns LLM output (not judge scores)."""
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous completion
 
     if assessment.kba_score is None:
         raise HTTPException(status_code=400, detail="KBA must be completed before PPA")
@@ -655,7 +654,7 @@ async def submit_best_attempt(
 ):
     """Submit best attempt for judging. Returns 5-dimension scores."""
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous completion
 
     ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
@@ -748,7 +747,7 @@ async def get_psv_sample(
 ):
     """Get a PSV sample for evaluation (full mode only)."""
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous completion
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
@@ -795,7 +794,7 @@ async def submit_psv(
 ):
     """Submit PSV evaluation (full mode only). Compares user's level against ground truth."""
     assessment = await _load_assessment(db, assessment_id)
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous completion
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
