@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.config import settings
 from app.database import async_session, engine
@@ -12,6 +14,23 @@ from app.services.leaderboard_service import rebuild_all
 from app.services.redis_client import close_redis, get_redis
 
 logger = logging.getLogger(__name__)
+
+
+class ExplicitCORSMiddleware(BaseHTTPMiddleware):
+    """Ensure CORS headers are always present, even through Cloudflare proxy."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        origin = request.headers.get("origin")
+        if origin and origin in settings.effective_cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "600"
+
+        return response
 
 
 @asynccontextmanager
@@ -45,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add explicit CORS headers for Cloudflare compatibility
+app.add_middleware(ExplicitCORSMiddleware)
 
 app.include_router(assessment.router)
 app.include_router(auth.router)
