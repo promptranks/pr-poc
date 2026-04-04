@@ -310,7 +310,20 @@ export default function PPA({ assessmentId, mode, onComplete }: PPAProps) {
 
       // Check if results are locked
       if (data.results_locked) {
-        alert('✓ Task completed. Upgrade to Premium to view results.')
+        // Show inline message - set output to the locked message
+        const newAttempt: Attempt = {
+          attempt: 1,
+          prompt,
+          output: data.message || '🔒 You are assessing with premium features. Upgrade to Premium to view results.',
+        }
+        setTaskAttempts(prev => ({
+          ...prev,
+          [currentTask.task_id]: [...(prev[currentTask.task_id] || []), newAttempt],
+        }))
+        setViewingAttempt(prev => ({
+          ...prev,
+          [currentTask.task_id]: 0,
+        }))
         return
       }
 

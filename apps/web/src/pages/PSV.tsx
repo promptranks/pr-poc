@@ -374,7 +374,8 @@ export default function PSV({ assessmentId, onComplete }: PSVProps) {
 
       // Check if results are locked
       if (data.results_locked) {
-        alert('✓ PSV completed. Upgrade to Premium to view your score.')
+        // Show inline message instead of alert
+        setError(data.message || '🔒 You are assessing with premium features. Upgrade to Premium to view your score.')
         onComplete()
       } else {
         setResult(data as PSVResult)
