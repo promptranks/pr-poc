@@ -922,8 +922,8 @@ async def get_results(
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    # Verify ownership
-    await _verify_assessment_ownership(assessment, current_user)
+    # No ownership check - allow anonymous users to view results
+    # Auth only required for claiming badge
 
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
