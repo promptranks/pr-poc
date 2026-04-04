@@ -649,9 +649,11 @@ async def submit_best_attempt(
     assessment_id: str,
     body: PPASubmitBestRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit best attempt for judging. Returns 5-dimension scores."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     ppa: dict = assessment.ppa_responses or {}
     task_ids_str = ppa.get("task_ids", [])
