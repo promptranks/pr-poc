@@ -265,21 +265,51 @@ async def start_assessment(
                 detail="Premium subscription required for this industry/role combination"
             )
 
-    # Check usage limits for full assessments
+    # Check usage limits for premium features
     results_locked = False
-    if body.mode == "full":
+
+    # Determine if premium features are used
+    premium_features_used = (
+        body.mode == "full" or
+        body.industry_id is not None or
+        body.role_id is not None
+    )
+
+    if premium_features_used:
         if current_user:
             tier = current_user.subscription_tier
+
             if tier == "premium":
-                can_start, used, limit = await UsageService.check_limit(str(current_user.id), tier, db)
+                # Premium users: check limit and increment
+                can_start, used, limit = await UsageService.check_limit(
+                    str(current_user.id), tier, db
+                )
                 if not can_start:
                     raise HTTPException(
                         status_code=403,
                         detail=f"Assessment limit reached ({used}/{limit}). Upgrade to Enterprise for unlimited access."
                     )
                 await UsageService.increment_usage(str(current_user.id), tier, db)
+
             elif tier == "free":
+                # Free users: check 1 trial limit
+                can_start, used, limit = await UsageService.check_limit(
+                    str(current_user.id), tier, db
+                )
+                if not can_start:
+                    raise HTTPException(
+                        status_code=402,
+                        detail={
+                            "message": "Free trial used. Upgrade to Premium for 3 full assessments per month.",
+                            "used": used,
+                            "limit": limit,
+                            "upgrade_required": True
+                        }
+                    )
+                # Allow this attempt but lock results
+                await UsageService.increment_usage(str(current_user.id), tier, db)
                 results_locked = True
+
             # enterprise: no limit, results_locked stays False
         else:
             # Anonymous user: allow but lock results
@@ -410,6 +440,13 @@ async def submit_kba(
     }
     assessment.pillar_scores = kba_result["pillar_scores"]
     await db.commit()
+
+    # Check if results are locked
+    if assessment.results_locked:
+        return {
+            "message": "KBA completed. Upgrade to Premium to view your scores.",
+            "results_locked": True
+        }
 
     return SubmitKBAResponse(
         kba_score=kba_result["total_score"],
@@ -549,6 +586,13 @@ async def execute_ppa(
     assessment.ppa_responses = updated_ppa
     flag_modified(assessment, "ppa_responses")
     await db.commit()
+
+    # Check if results are locked before returning output
+    if assessment.results_locked:
+        return {
+            "message": "Task completed. Upgrade to Premium to view results.",
+            "results_locked": True
+        }
 
     return PPAExecuteResponse(
         task_id=body.task_id,
@@ -735,6 +779,13 @@ async def submit_psv(
     }
     flag_modified(assessment, "psv_submission")
     await db.commit()
+
+    # Check if results are locked
+    if assessment.results_locked:
+        return {
+            "message": "PSV completed. Upgrade to Premium to view your score.",
+            "results_locked": True
+        }
 
     return PSVSubmitResponse(
         psv_score=psv_score,

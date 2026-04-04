@@ -370,8 +370,15 @@ export default function PSV({ assessmentId, onComplete }: PSVProps) {
         const data = await res.json()
         throw new Error(data.detail || 'Submission failed')
       }
-      const data: PSVResult = await res.json()
-      setResult(data)
+      const data = await res.json()
+
+      // Check if results are locked
+      if (data.results_locked) {
+        alert('✓ PSV completed. Upgrade to Premium to view your score.')
+        onComplete()
+      } else {
+        setResult(data as PSVResult)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Submission failed'
       setError(message)
