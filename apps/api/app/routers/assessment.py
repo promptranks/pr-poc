@@ -128,10 +128,12 @@ class PillarScoreOut(BaseModel):
 
 
 class SubmitKBAResponse(BaseModel):
-    kba_score: float
-    total_correct: int
-    total_questions: int
-    pillar_scores: dict[str, PillarScoreOut]
+    kba_score: float | None = None
+    total_correct: int | None = None
+    total_questions: int | None = None
+    pillar_scores: dict[str, PillarScoreOut] | None = None
+    results_locked: bool | None = None
+    message: str | None = None
 
 
 class PPAExecuteRequest(BaseModel):

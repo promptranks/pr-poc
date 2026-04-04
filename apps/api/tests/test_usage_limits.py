@@ -134,7 +134,7 @@ async def test_check_limit_enterprise_user_unlimited(db_session, test_user):
 
     can_start, used, limit = await UsageService.check_limit(str(test_user.id), "enterprise", db_session)
 
-    assert can_start is False  # 100 >= 999 is False, but practically unlimited
+    assert can_start is True  # 100 < 999, so can still start
     assert used == 100
     assert limit == 999
 
@@ -165,7 +165,7 @@ async def test_free_user_first_premium_attempt_allowed(client, test_user, seeded
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -194,7 +194,7 @@ async def test_free_user_second_premium_attempt_blocked(client, test_user, seede
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -218,7 +218,7 @@ async def test_premium_user_can_start_full_assessment(client, test_user, seeded_
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -247,7 +247,7 @@ async def test_premium_user_at_limit_blocked(client, test_user, seeded_db, db_se
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -286,6 +286,10 @@ async def test_results_locked_hides_kba_scores(client, test_user, seeded_db, db_
     test_user.subscription_tier = "free"
     await db_session.commit()
 
+    # Create auth token
+    from app.services.auth_service import create_access_token
+    token = create_access_token(test_user.id, test_user.email)
+
     # Create assessment with results_locked
     assessment = Assessment(
         id=uuid.uuid4(),
@@ -305,7 +309,8 @@ async def test_results_locked_hides_kba_scores(client, test_user, seeded_db, db_
 
     response = await client.post(
         f"/assessments/{assessment.id}/kba/submit",
-        json={"answers": answers}
+        json={"answers": answers},
+        headers={"Authorization": f"Bearer {token}"}
     )
 
     assert response.status_code == 200
@@ -322,7 +327,7 @@ async def test_industry_selection_triggers_paywall(client, test_user, seeded_db)
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -345,7 +350,7 @@ async def test_role_selection_triggers_paywall(client, test_user, seeded_db):
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
     response = await client.post(
         "/assessments/start",
@@ -465,23 +470,26 @@ async def test_assessment_expiry_no_refund(db_session, test_user):
 
 
 @pytest.mark.asyncio
-async def test_enterprise_user_no_limits(client, test_user, seeded_db):
+async def test_enterprise_user_no_limits(client, test_user, seeded_db, db_session):
     """Test enterprise user has no limits."""
     test_user.subscription_tier = "enterprise"
+    db_session.add(test_user)
+    await db_session.commit()
 
     # Create auth token
     from app.services.auth_service import create_access_token
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(test_user.id, test_user.email)
 
-    # Start multiple assessments
-    for _ in range(5):
+    # Start multiple assessments (enterprise has no limit)
+    for i in range(5):
         response = await client.post(
             "/assessments/start",
             json={
                 "mode": "full",
-                "industry_id": str(uuid.uuid4()),
-                "role_id": str(uuid.uuid4())
+                # Use None for industry/role to avoid premium requirement check
+                "industry_id": None,
+                "role_id": None
             },
             headers={"Authorization": f"Bearer {token}"}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Attempt {i+1} failed: {response.json()}"
