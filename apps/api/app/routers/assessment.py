@@ -46,7 +46,7 @@ from app.services.scoring import aggregate_pillar_scores, assign_level, compute_
 from app.services.redis_client import get_redis
 from app.services.leaderboard_service import update_score, LEVEL_NAMES
 from app.services.usage_service import UsageService
-from app.middleware.auth import get_current_user_optional
+from app.middleware.auth import get_current_user_optional, get_current_user
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -392,19 +392,12 @@ async def submit_kba(
     assessment_id: str,
     body: SubmitKBARequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit KBA answers. Returns score + per-pillar breakdown."""
-    # Load assessment
-    try:
-        aid = uuid.UUID(assessment_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid assessment ID")
-
-    result = await db.execute(select(Assessment).where(Assessment.id == aid))
-    assessment = result.scalar_one_or_none()
-
-    if assessment is None:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    # Load assessment and verify ownership
+    assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment.status == "expired":
         raise HTTPException(status_code=400, detail="Assessment has expired")
@@ -462,6 +455,50 @@ async def submit_kba(
 
 
 async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
+    """Load assessment by ID or raise 404."""
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid assessment ID")
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    return assessment
+
+
+async def _verify_assessment_ownership(
+    assessment: Assessment,
+    current_user: User | None
+) -> None:
+    """Verify user owns assessment or raise 403.
+
+    Anonymous assessments (user_id=None) can be accessed without auth.
+    User-owned assessments require authentication and ownership verification.
+    """
+    # Allow anonymous assessments to be accessed without auth
+    if assessment.user_id is None:
+        return
+
+    # Require authentication for user-owned assessments
+    if current_user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to access this assessment"
+        )
+
+    # Verify ownership
+    if assessment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this assessment"
+        )
+
+
+async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
     """Load an in-progress, non-expired assessment or raise HTTPException."""
     try:
         aid = uuid.UUID(assessment_id)
@@ -493,9 +530,11 @@ async def _load_assessment(db: AsyncSession, assessment_id: str) -> Assessment:
 async def get_ppa_tasks(
     assessment_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Get PPA tasks for the assessment. Selects tasks on first call, returns cached on subsequent calls."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     # Check KBA is done
     if assessment.kba_score is None:
@@ -534,9 +573,11 @@ async def execute_ppa(
     assessment_id: str,
     body: PPAExecuteRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Execute a user prompt against a PPA task. Returns LLM output (not judge scores)."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment.kba_score is None:
         raise HTTPException(status_code=400, detail="KBA must be completed before PPA")
@@ -696,9 +737,14 @@ async def submit_best_attempt(
 
 
 @router.get("/{assessment_id}/psv/sample", response_model=PSVSampleResponse)
-async def get_psv_sample(assessment_id: str, db: AsyncSession = Depends(get_db)):
+async def get_psv_sample(
+    assessment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+):
     """Get a PSV sample for evaluation (full mode only)."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
@@ -741,9 +787,11 @@ async def submit_psv(
     assessment_id: str,
     body: PSVSubmitRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Submit PSV evaluation (full mode only). Compares user's level against ground truth."""
     assessment = await _load_assessment(db, assessment_id)
+    await _verify_assessment_ownership(assessment, current_user)
     if assessment.mode != AssessmentMode.full:
         raise HTTPException(400, "PSV is only available in full assessment mode")
     if assessment.kba_score is None:
@@ -857,6 +905,7 @@ async def report_violation(
 async def get_results(
     assessment_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Get assessment results. Computes final score and marks as completed on first call."""
     try:
@@ -866,6 +915,12 @@ async def get_results(
 
     result = await db.execute(select(Assessment).where(Assessment.id == aid))
     assessment = result.scalar_one_or_none()
+
+    if assessment is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Verify ownership
+    await _verify_assessment_ownership(assessment, current_user)
 
     if assessment is None:
         raise HTTPException(status_code=404, detail="Assessment not found")

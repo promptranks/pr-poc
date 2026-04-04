@@ -119,3 +119,87 @@ async def test_webhook_invalid_signature():
         with pytest.raises(Exception):
             await stripe_webhook(mock_request, mock_db)
 
+
+@pytest.mark.asyncio
+async def test_webhook_upgrade_preserves_usage(db_session, test_user):
+    """Test Case 4: Webhook preserves usage count when upgrading free to premium."""
+    from app.models.user_usage import UserUsage
+    from app.services.usage_service import UsageService
+
+    test_user.subscription_tier = "free"
+    db_session.add(test_user)
+    await db_session.commit()
+
+    # Free user uses their trial
+    await UsageService.increment_usage(str(test_user.id), "free", db_session)
+
+    # Verify free user has 1/1 used
+    can_start, used, limit = await UsageService.check_limit(str(test_user.id), "free", db_session)
+    assert used == 1
+    assert limit == 1
+
+    # Simulate webhook upgrade
+    session_data = {
+        "metadata": {"user_id": str(test_user.id)},
+        "subscription": "sub_test123"
+    }
+
+    from app.models.stripe_customer import StripeCustomer
+    stripe_customer = StripeCustomer(
+        user_id=test_user.id,
+        stripe_customer_id="cus_test123"
+    )
+    db_session.add(stripe_customer)
+    await db_session.commit()
+
+    await StripeService.handle_checkout_completed(session_data, db_session)
+
+    # Verify user is now premium
+    await db_session.refresh(test_user)
+    assert test_user.subscription_tier == "premium"
+
+    # Verify usage is preserved: 1/3
+    can_start, used, limit = await UsageService.check_limit(str(test_user.id), "premium", db_session)
+    assert used == 1  # Preserved from free tier
+    assert limit == 3  # Updated to premium limit
+    assert can_start is True  # Can start 2 more
+
+
+@pytest.mark.asyncio
+async def test_webhook_fresh_premium_user(db_session, test_user):
+    """Test Case 5: Webhook creates 0/3 usage for fresh premium user."""
+    from app.models.user_usage import UserUsage
+    from app.services.usage_service import UsageService
+
+    test_user.subscription_tier = "free"
+    db_session.add(test_user)
+    await db_session.commit()
+
+    # No usage record exists yet
+
+    # Simulate webhook upgrade
+    session_data = {
+        "metadata": {"user_id": str(test_user.id)},
+        "subscription": "sub_test123"
+    }
+
+    from app.models.stripe_customer import StripeCustomer
+    stripe_customer = StripeCustomer(
+        user_id=test_user.id,
+        stripe_customer_id="cus_test123"
+    )
+    db_session.add(stripe_customer)
+    await db_session.commit()
+
+    await StripeService.handle_checkout_completed(session_data, db_session)
+
+    # Verify user is now premium
+    await db_session.refresh(test_user)
+    assert test_user.subscription_tier == "premium"
+
+    # Verify usage is created: 0/3
+    can_start, used, limit = await UsageService.check_limit(str(test_user.id), "premium", db_session)
+    assert used == 0
+    assert limit == 3
+    assert can_start is True
+
