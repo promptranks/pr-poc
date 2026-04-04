@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import secrets
+import uuid
+import logging
 
 from app.database import get_db
 from app.services.auth_service import (
@@ -16,8 +19,30 @@ from app.services.auth_service import (
 from app.services.oauth_service import OAuthService
 from app.services.magic_link_service import MagicLinkService
 from app.services.email_service import EmailService
+from app.models.assessment import Assessment
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+
+# --- Helper functions ---
+
+
+async def _transfer_assessment_to_user(db: AsyncSession, assessment_id: str, user_id: uuid.UUID) -> None:
+    """Transfer an anonymous assessment to a user account."""
+    try:
+        aid = uuid.UUID(assessment_id)
+    except ValueError:
+        logger.warning(f"Invalid assessment_id in OAuth state: {assessment_id}")
+        return
+
+    result = await db.execute(select(Assessment).where(Assessment.id == aid))
+    assessment = result.scalar_one_or_none()
+
+    if assessment and assessment.user_id is None:
+        assessment.user_id = user_id
+        await db.commit()
+        logger.info(f"Transferred assessment {assessment_id} to user {user_id}")
 
 
 # --- Request/Response schemas ---
@@ -119,9 +144,11 @@ async def login(
 
 
 @router.get("/google")
-async def google_oauth():
-    """Redirect to Google OAuth."""
+async def google_oauth(assessment_id: str | None = Query(None)):
+    """Redirect to Google OAuth. Optionally pass assessment_id to claim after login."""
     state = secrets.token_urlsafe(16)
+    if assessment_id:
+        state = f"{state}:{assessment_id}"
     auth_url = OAuthService.get_google_auth_url(state)
     return RedirectResponse(auth_url)
 
@@ -129,12 +156,18 @@ async def google_oauth():
 @router.get("/google/callback", response_model=OAuthCallbackResponse)
 async def google_callback(
     code: str = Query(...),
+    state: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle Google OAuth callback."""
+    """Handle Google OAuth callback. Claims assessment if assessment_id in state."""
     oauth_data = await OAuthService.exchange_google_code(code)
     user = await OAuthService.get_or_create_user(db, "google", oauth_data)
     token = create_access_token(user.id, user.email)
+
+    # Check if state contains assessment_id to claim
+    if state and ":" in state:
+        _, assessment_id = state.split(":", 1)
+        await _transfer_assessment_to_user(db, assessment_id, user.id)
 
     return OAuthCallbackResponse(
         id=str(user.id),
@@ -146,9 +179,11 @@ async def google_callback(
 
 
 @router.get("/github")
-async def github_oauth():
-    """Redirect to GitHub OAuth."""
+async def github_oauth(assessment_id: str | None = Query(None)):
+    """Redirect to GitHub OAuth. Optionally pass assessment_id to claim after login."""
     state = secrets.token_urlsafe(16)
+    if assessment_id:
+        state = f"{state}:{assessment_id}"
     auth_url = OAuthService.get_github_auth_url(state)
     return RedirectResponse(auth_url)
 
@@ -156,12 +191,18 @@ async def github_oauth():
 @router.get("/github/callback", response_model=OAuthCallbackResponse)
 async def github_callback(
     code: str = Query(...),
+    state: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle GitHub OAuth callback."""
+    """Handle GitHub OAuth callback. Claims assessment if assessment_id in state."""
     oauth_data = await OAuthService.exchange_github_code(code)
     user = await OAuthService.get_or_create_user(db, "github", oauth_data)
     token = create_access_token(user.id, user.email)
+
+    # Check if state contains assessment_id to claim
+    if state and ":" in state:
+        _, assessment_id = state.split(":", 1)
+        await _transfer_assessment_to_user(db, assessment_id, user.id)
 
     return OAuthCallbackResponse(
         id=str(user.id),

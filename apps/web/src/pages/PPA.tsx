@@ -307,6 +307,26 @@ export default function PPA({ assessmentId, mode, onComplete }: PPAProps) {
         throw new Error(data.detail || 'Execution failed')
       }
       const data = await res.json()
+
+      // Check if results are locked
+      if (data.results_locked) {
+        // Show inline message - set output to the locked message
+        const newAttempt: Attempt = {
+          attempt: 1,
+          prompt,
+          output: data.message || '🔒 You are assessing with premium features. Upgrade to Premium to view results.',
+        }
+        setTaskAttempts(prev => ({
+          ...prev,
+          [currentTask.task_id]: [...(prev[currentTask.task_id] || []), newAttempt],
+        }))
+        setViewingAttempt(prev => ({
+          ...prev,
+          [currentTask.task_id]: 0,
+        }))
+        return
+      }
+
       const newAttempt: Attempt = {
         attempt: data.attempt_number,
         prompt,

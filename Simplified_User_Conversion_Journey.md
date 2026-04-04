@@ -8,389 +8,581 @@ This document outlines the Phase 1 simplification of the Promptranks user conver
 2. **Simplified premium gating** - Single decision point instead of multiple conditional checks
 3. **Deferred badge claiming** - Lazy approach where badges appear automatically in dashboard
 
-## Current vs Simplified Architecture
+## Core Principles
 
-### Before (Current - Complexity 7/10)
+### Anonymous-First Assessment Flow
+- **All users (anonymous or authenticated) can START and COMPLETE any assessment**
+- Premium features (industry/role selection, full mode) lock results until user subscribes
+- Freemium features (quick assessment without industry/role) show results immediately
+- Authentication is only required at the **Results page** to claim/view scores
 
-**State Management:**
-- Uses sessionStorage for pending assessment context
-- State lost on browser close/refresh
-- Complex synchronization between frontend and backend
-- Multiple points where state can be lost
+### Quota Management
+- **Quota consumed at assessment START** (not completion or claim)
+- Free users: 1 trial for premium features
+- Premium users: 3 assessments per month
+- Enterprise users: unlimited
 
-**Premium Gating:**
-- Multiple conditional checks throughout the flow
-- Complex logic in Landing.tsx, Assessment.tsx, PPA.tsx
-- State preservation across Stripe redirect
-- Polling for tier updates after payment
+### Results Locking
+- **Freemium features**: Results visible to all users (anonymous or authenticated)
+- **Premium features**: Results locked until user signs in AND subscribes
+- Locked results show: "Sign in and upgrade to Premium to view your scores"
 
-**Badge Claiming:**
-- Immediate claiming required at Results page
-- Authentication check at claim time
-- Manual "Claim Badge" button for unauthenticated users
-- Complex conditional rendering based on auth state
+---
 
-### After (Phase 1 - Complexity 5/10)
+## User Flows
 
-**State Management:**
-- Database table: `pending_assessments`
-- Persistent across sessions and devices
-- Single source of truth
-- Automatic cleanup after completion
+### Flow 1: Anonymous User → Freemium Feature → Complete
 
-**Premium Gating:**
-- Single check at assessment start
-- Clear decision: proceed or upgrade
-- No mid-flow interruptions
-- Simplified redirect flow
+**Scenario**: User starts quick assessment without selecting industry/role
 
-**Badge Claiming:**
-- Automatic claiming when user signs in
-- No manual claim button needed
-- Badge appears in dashboard automatically
-- Simplified Results page UI
+```mermaid
+graph TD
+    A[Landing Page] --> B[Click Start Quick Assessment]
+    B --> C[Create Assessment in DB<br/>user_id=NULL, results_locked=FALSE]
+    C --> D[Complete KBA]
+    D --> E[Complete PPA]
+    E --> F[Results Page - Scores Visible]
+    F --> G{User Action}
+    G -->|Sign In| H[Transfer Assessment to User<br/>Badge Auto-Saved]
+    G -->|Skip| I[Assessment Remains Anonymous<br/>No Badge]
+    H --> J[View Dashboard with Badge]
+```
 
-## Database Schema Changes
+**Key Points**:
+- No authentication required at any step
+- Scores visible immediately after completion
+- Badge only saved if user signs in
+- Anonymous assessments can be claimed later via OAuth state transfer
 
-### New Table: pending_assessments
+---
+
+### Flow 2: Anonymous User → Premium Feature → Complete → Locked Results
+
+**Scenario**: User selects industry/role or starts full assessment without authentication
+
+```mermaid
+graph TD
+    A[Landing Page] --> B[Select Industry/Role OR Click Full Assessment]
+    B --> C[Create Assessment in DB<br/>user_id=NULL, results_locked=TRUE]
+    C --> D[Complete KBA - No Scores Shown]
+    D --> E[Complete PPA - No Output Shown]
+    E --> F[Complete PSV if Full Mode]
+    F --> G[Results Page - Scores LOCKED]
+    G --> H[Display: Sign in and upgrade to view scores]
+    H --> I{User Action}
+    I -->|Sign In| J{Check Subscription}
+    J -->|Free User| K[Show Upgrade Prompt<br/>Scores Still Locked]
+    J -->|Premium/Enterprise| L[Transfer Assessment<br/>Unlock Results<br/>Badge Auto-Saved]
+    I -->|Skip| M[Assessment Saved<br/>Can Claim Later]
+    L --> N[View Dashboard with Badge]
+```
+
+**Key Points**:
+- User can complete entire assessment without authentication
+- Scores/outputs hidden during assessment (show "Upgrade to view" messages)
+- Results page shows locked state with upgrade prompt
+- If user signs in as free user, still locked until they upgrade
+- If user signs in as premium/enterprise, results unlock immediately
+
+---
+
+### Flow 3: Authenticated Free User → Premium Feature → Locked Results
+
+**Scenario**: Free user (already logged in) tries to start premium assessment
+
+```mermaid
+graph TD
+    A[Landing Page - Logged In as Free] --> B[Select Industry/Role OR Click Full]
+    B --> C{Check Quota}
+    C -->|Trial Used 1/1| D[Block: Upgrade Required]
+    C -->|Trial Available 0/1| E[Create Assessment<br/>user_id=USER_ID<br/>results_locked=TRUE<br/>Increment Quota to 1/1]
+    E --> F[Complete KBA - No Scores Shown]
+    F --> G[Complete PPA - No Output Shown]
+    G --> H[Complete PSV if Full]
+    H --> I[Results Page - Scores LOCKED]
+    I --> J[Display: Upgrade to Premium to view scores]
+    J --> K{User Action}
+    K -->|Upgrade| L[Redirect to Stripe]
+    K -->|Skip| M[Assessment Saved<br/>Scores Locked]
+    L --> N[Payment Complete]
+    N --> O[Webhook Updates Tier to Premium]
+    O --> P[User Returns to Dashboard]
+    P --> Q[Results Unlocked<br/>Badge Auto-Saved]
+```
+
+**Key Points**:
+- Free users get 1 trial for premium features
+- Quota consumed at START (not completion)
+- If trial already used, blocked at start with upgrade prompt
+- If trial available, can complete assessment but results locked
+- After upgrade, all locked assessments unlock automatically
+
+---
+
+### Flow 4: Authenticated Premium User → Any Feature → Auto-Badge
+
+**Scenario**: Premium user (already logged in) starts any assessment
+
+```mermaid
+graph TD
+    A[Landing Page - Logged In as Premium] --> B[Select Any Feature]
+    B --> C{Check Quota}
+    C -->|At Limit 3/3| D[Block: Limit Reached<br/>Upgrade to Enterprise]
+    C -->|Under Limit 0-2/3| E[Create Assessment<br/>user_id=USER_ID<br/>results_locked=FALSE<br/>Increment Quota]
+    E --> F[Complete KBA - Scores Shown]
+    F --> G[Complete PPA - Output Shown]
+    G --> H[Complete PSV if Full]
+    H --> I[Results Page - Scores Visible]
+    I --> J[Badge Auto-Saved to Dashboard]
+    J --> K[View Dashboard with Badge]
+```
+
+**Key Points**:
+- Premium users: 3 assessments per month
+- Quota consumed at START
+- All results visible immediately
+- Badge auto-saved on completion
+- No manual claiming needed
+
+---
+
+### Flow 5: Authenticated Enterprise User → Unlimited Access
+
+**Scenario**: Enterprise user (already logged in) starts any assessment
+
+```mermaid
+graph TD
+    A[Landing Page - Logged In as Enterprise] --> B[Select Any Feature]
+    B --> C[Create Assessment<br/>user_id=USER_ID<br/>results_locked=FALSE<br/>No Quota Check]
+    C --> D[Complete KBA - Scores Shown]
+    D --> E[Complete PPA - Output Shown]
+    E --> F[Complete PSV if Full]
+    F --> G[Results Page - Scores Visible]
+    G --> H[Badge Auto-Saved to Dashboard]
+    H --> I[View Dashboard with Badge]
+```
+
+**Key Points**:
+- Enterprise users: unlimited assessments
+- No quota checks
+- All results visible immediately
+- Badge auto-saved on completion
+
+---
+
+## Database Schema
+
+### Table: assessments
 
 ```sql
-CREATE TABLE pending_assessments (
+CREATE TABLE assessments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,  -- NULL for anonymous
+    mode VARCHAR(20) NOT NULL,  -- 'quick' or 'full'
+    status VARCHAR(20) DEFAULT 'in_progress',
+    results_locked BOOLEAN DEFAULT FALSE,  -- TRUE for premium features
+    industry_id UUID REFERENCES industries(id),
+    role_id UUID REFERENCES roles(id),
+    
+    -- Scores
+    kba_score FLOAT,
+    ppa_score FLOAT,
+    psv_score FLOAT,
+    final_score FLOAT,
+    level INTEGER,
+    pillar_scores JSONB,
+    
+    -- Timestamps
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Badge claiming
+    badge_claimed BOOLEAN DEFAULT FALSE,
+    badge_claimed_at TIMESTAMP WITH TIME ZONE,
+    
+    -- Assessment data
+    kba_responses JSONB,
+    ppa_responses JSONB,
+    psv_responses JSONB
+);
+```
+
+### Table: user_usage
+
+```sql
+CREATE TABLE user_usage (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    session_id VARCHAR(255) NOT NULL,  -- For anonymous users
-    industry VARCHAR(100) NOT NULL,
-    role VARCHAR(100) NOT NULL,
-    mode VARCHAR(20) NOT NULL,  -- 'quick' or 'full'
-    status VARCHAR(20) DEFAULT 'pending',  -- 'pending', 'in_progress', 'completed', 'abandoned'
-    assessment_id UUID REFERENCES assessments(id) ON DELETE SET NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    full_assessments_used INTEGER DEFAULT 0,
+    full_assessments_limit INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() + INTERVAL '24 hours',
-
-    UNIQUE(session_id)
+    
+    UNIQUE(user_id, period_start)
 );
-
-CREATE INDEX idx_pending_assessments_user_id ON pending_assessments(user_id);
-CREATE INDEX idx_pending_assessments_session_id ON pending_assessments(session_id);
-CREATE INDEX idx_pending_assessments_expires_at ON pending_assessments(expires_at);
 ```
 
-### Modified Table: assessments
+---
 
-```sql
--- Add column to track unclaimed badges
-ALTER TABLE assessments ADD COLUMN badge_claimed BOOLEAN DEFAULT FALSE;
-ALTER TABLE assessments ADD COLUMN badge_claimed_at TIMESTAMP WITH TIME ZONE;
+## API Endpoints
+
+### POST /assessments/start
+
+**Request**:
+```json
+{
+  "mode": "quick" | "full",
+  "industry_id": "uuid" | null,
+  "role_id": "uuid" | null
+}
 ```
 
-## API Changes
+**Logic**:
+1. Determine if premium features used: `mode == "full" OR industry_id != null OR role_id != null`
+2. If premium features AND user authenticated:
+   - Check quota (free: 1 trial, premium: 3/month, enterprise: unlimited)
+   - If at limit: return 402/403 error
+   - If under limit: increment quota
+3. Create assessment with `results_locked = premium_features_used`
+4. Return assessment_id
 
-### New Endpoints
+**Response**:
+```json
+{
+  "assessment_id": "uuid",
+  "mode": "quick" | "full",
+  "results_locked": true | false
+}
+```
 
-**POST /api/assessments/pending**
-- Create or update pending assessment
-- Request body: `{ industry, role, mode, session_id?, user_id? }`
-- Response: `{ id, industry, role, mode, status }`
+---
 
-**GET /api/assessments/pending/{session_id}**
-- Retrieve pending assessment by session ID
-- Response: `{ id, industry, role, mode, status, assessment_id? }`
+### POST /assessments/{id}/kba/submit
 
-**DELETE /api/assessments/pending/{id}**
-- Cancel/abandon pending assessment
-- Response: `{ success: true }`
+**No authentication required** - allows anonymous completion
 
-**GET /api/dashboard/unclaimed-badges**
-- Get list of unclaimed badges for authenticated user
-- Response: `[{ assessment_id, badge_id, industry, role, score, completed_at }]`
+**Logic**:
+1. Score KBA answers
+2. Save scores to assessment
+3. If `results_locked == true`: return `{ "results_locked": true, "message": "..." }`
+4. Else: return scores
 
-### Modified Endpoints
+**Response (unlocked)**:
+```json
+{
+  "kba_score": 85.5,
+  "total_correct": 17,
+  "total_questions": 20,
+  "pillar_scores": { ... }
+}
+```
 
-**POST /api/assessments/start**
-- Now checks for pending assessment
-- Auto-resumes if pending assessment exists
-- Premium check happens here (single point)
+**Response (locked)**:
+```json
+{
+  "results_locked": true,
+  "message": "KBA completed. Sign in and upgrade to Premium to view your scores."
+}
+```
 
-**POST /api/assessments/{id}/claim**
-- Now sets `badge_claimed = true`
-- Returns badge data as before
+---
 
-## Frontend Changes
+### POST /assessments/{id}/ppa/execute
+
+**No authentication required** - allows anonymous completion
+
+**Logic**:
+1. Execute prompt via LLM
+2. Store attempt
+3. If `results_locked == true`: return `{ "results_locked": true, "message": "..." }`
+4. Else: return LLM output
+
+**Response (unlocked)**:
+```json
+{
+  "task_id": "uuid",
+  "attempt_number": 1,
+  "output": "LLM generated output...",
+  "attempts_used": 1,
+  "max_attempts": 3
+}
+```
+
+**Response (locked)**:
+```json
+{
+  "results_locked": true,
+  "message": "Task completed. Sign in and upgrade to Premium to view results."
+}
+```
+
+---
+
+### GET /assessments/{id}/results
+
+**Authentication optional** - returns locked state if applicable
+
+**Response (unlocked)**:
+```json
+{
+  "assessment_id": "uuid",
+  "mode": "quick",
+  "status": "completed",
+  "results_locked": false,
+  "final_score": 87.3,
+  "level": 3,
+  "kba_score": 85.5,
+  "ppa_score": 89.1,
+  "psv_score": null,
+  "pillar_scores": { ... },
+  "completed_at": "2026-04-04T10:30:00Z"
+}
+```
+
+**Response (locked)**:
+```json
+{
+  "assessment_id": "uuid",
+  "mode": "full",
+  "status": "completed",
+  "results_locked": true,
+  "final_score": 0,
+  "level": 0,
+  "kba_score": 0,
+  "ppa_score": 0,
+  "psv_score": 0,
+  "pillar_scores": {},
+  "completed_at": "2026-04-04T10:30:00Z"
+}
+```
+
+---
+
+### POST /assessments/{id}/claim
+
+**Authentication required** - transfers anonymous assessment to user
+
+**Logic**:
+1. Verify assessment exists and is completed
+2. Authenticate user (via token or email/password in body)
+3. Transfer assessment: `assessment.user_id = user.id`
+4. Generate badge
+5. Mark `badge_claimed = true`
+6. Return badge data
+
+**Response**:
+```json
+{
+  "badge_id": "uuid",
+  "badge_svg": "<svg>...</svg>",
+  "verification_url": "https://...",
+  "token": "jwt_token",
+  "user_id": "uuid"
+}
+```
+
+---
+
+### GET /auth/google?assessment_id={uuid}
+
+**OAuth with assessment transfer**
+
+**Logic**:
+1. Encode `assessment_id` in OAuth state parameter
+2. Redirect to Google OAuth
+3. On callback: extract `assessment_id` from state
+4. Transfer assessment to user: `assessment.user_id = user.id`
+5. Return user data + token
+
+---
+
+## Frontend Implementation
 
 ### Landing.tsx
 
-**Before:**
 ```typescript
-// Complex sessionStorage management
-const handleStart = () => {
-  sessionStorage.setItem('pending_assessment', JSON.stringify({
-    industry, role, mode
-  }))
-  if (requiresUpgrade) {
-    // Redirect to payment
-  } else {
-    navigate('/assessment')
-  }
-}
-```
-
-**After:**
-```typescript
-// Simple API call
-const handleStart = async () => {
-  const sessionId = getOrCreateSessionId()
-
-  // Create pending assessment
-  await fetch('/api/assessments/pending', {
+const handleStartAssessment = async () => {
+  const response = await fetch('/api/assessments/start', {
     method: 'POST',
-    body: JSON.stringify({ industry, role, mode, session_id: sessionId })
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    },
+    body: JSON.stringify({
+      mode: selectedMode,
+      industry_id: selectedIndustry,
+      role_id: selectedRole
+    })
   })
 
-  // Single premium check
-  if (requiresUpgrade) {
+  if (response.status === 402) {
+    // Free user, trial used - redirect to pricing
     navigate('/pricing')
-  } else {
-    navigate('/assessment')
+    return
   }
+
+  if (response.status === 403) {
+    // Premium user at limit - show upgrade prompt
+    setShowUpgradeModal(true)
+    return
+  }
+
+  const data = await response.json()
+  navigate(`/assessment/${data.assessment_id}`)
 }
 ```
+
+---
 
 ### Assessment.tsx
 
-**Before:**
 ```typescript
-// Check sessionStorage, check auth, check tier
-useEffect(() => {
-  const pending = sessionStorage.getItem('pending_assessment')
-  if (!pending) navigate('/landing')
+// KBA submission
+const handleSubmitKBA = async () => {
+  const response = await fetch(`/api/assessments/${assessmentId}/kba/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers })
+  })
 
-  const { industry, role } = JSON.parse(pending)
-  if (requiresPremium(industry, role) && !isPremium) {
-    // Show upgrade modal
-  }
-}, [])
-```
+  const data = await response.json()
 
-**After:**
-```typescript
-// Single API call to start assessment
-useEffect(() => {
-  const startAssessment = async () => {
-    const sessionId = getSessionId()
-    const res = await fetch('/api/assessments/start', {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId })
-    })
-
-    if (res.status === 402) {
-      // Payment required - redirect to pricing
-      navigate('/pricing')
-      return
-    }
-
-    const data = await res.json()
-    setAssessmentId(data.assessment_id)
-    // Continue with assessment
+  if (data.results_locked) {
+    // Show inline message: "Sign in and upgrade to view scores"
+    setLockedMessage(data.message)
+  } else {
+    // Show scores
+    setKbaScore(data.kba_score)
   }
 
-  void startAssessment()
-}, [])
+  // Continue to PPA
+  setPhase('ppa')
+}
 ```
+
+---
 
 ### Results.tsx
 
-**Before:**
 ```typescript
-// Complex authentication check and manual claim
-{isAuthenticated ? (
-  <div>Badge auto-claimed</div>
-) : (
-  <button onClick={handleClaim}>Claim Badge</button>
-)}
-```
+const ResultsPage = () => {
+  const { assessmentId } = useParams()
+  const [results, setResults] = useState(null)
 
-**After:**
-```typescript
-// Simple display, no claim button
-<div>
-  <h2>Assessment Complete!</h2>
-  <p>Your score: {score}</p>
-  {isAuthenticated ? (
-    <p>Badge saved to your dashboard</p>
-  ) : (
-    <p>Sign in to save your badge and track progress</p>
-  )}
-  <button onClick={() => navigate('/dashboard')}>View Dashboard</button>
-</div>
-```
-
-### Dashboard.tsx
-
-**Before:**
-```typescript
-// Only shows claimed badges
-const badges = await fetch('/api/badges')
-```
-
-**After:**
-```typescript
-// Shows all badges + auto-claim unclaimed ones
-useEffect(() => {
-  const claimPendingBadges = async () => {
-    const unclaimed = await fetch('/api/dashboard/unclaimed-badges')
-
-    // Auto-claim all unclaimed badges
-    for (const badge of unclaimed.data) {
-      await fetch(`/api/assessments/${badge.assessment_id}/claim`, {
-        method: 'POST'
-      })
+  useEffect(() => {
+    const fetchResults = async () => {
+      const response = await fetch(`/api/assessments/${assessmentId}/results`)
+      const data = await response.json()
+      setResults(data)
     }
+    fetchResults()
+  }, [assessmentId])
 
-    // Refresh dashboard
-    fetchDashboard()
+  if (results.results_locked) {
+    return (
+      <div>
+        <h2>Assessment Complete!</h2>
+        <p>🔒 Sign in and upgrade to Premium to view your scores.</p>
+        <button onClick={() => navigate(`/auth/google?assessment_id=${assessmentId}`)}>
+          Sign In with Google
+        </button>
+        <button onClick={() => navigate('/pricing')}>
+          View Pricing
+        </button>
+      </div>
+    )
   }
 
-  void claimPendingBadges()
-}, [])
+  return (
+    <div>
+      <h2>Assessment Complete!</h2>
+      <p>Your score: {results.final_score}</p>
+      <p>Level: {results.level}</p>
+      {isAuthenticated ? (
+        <p>✓ Badge saved to your dashboard</p>
+      ) : (
+        <button onClick={() => navigate(`/auth/google?assessment_id=${assessmentId}`)}>
+          Sign In to Save Badge
+        </button>
+      )}
+    </div>
+  )
+}
 ```
 
-## Simplified User Flows
+---
 
-### Flow 1: Anonymous User → Quick Assessment → Complete
+## Benefits of This Approach
 
-```mermaid
-graph TD
-    A[Landing Page] --> B[Select Industry/Role]
-    B --> C[Click Start Quick]
-    C --> D[Create Pending Assessment in DB]
-    D --> E[Start Assessment]
-    E --> F[Complete KBA]
-    F --> G[Complete PPA]
-    G --> H[Results Page]
-    H --> I[View Score]
-    I --> J{Authenticated?}
-    J -->|No| K[Prompt to Sign In]
-    J -->|Yes| L[Badge Auto-Saved]
-    L --> M[View Dashboard]
-```
+### 1. Frictionless Anonymous Experience
+- Users can try the full assessment without creating an account
+- No authentication barriers during assessment
+- Conversion happens at the moment of value (seeing results)
 
-### Flow 2: Anonymous User → Premium Assessment → Payment → Complete
+### 2. Clear Value Proposition
+- Free users see what they're missing (locked results)
+- Premium features are gated at results, not at start
+- Upgrade prompt appears when user is most motivated
 
-```mermaid
-graph TD
-    A[Landing Page] --> B[Select Premium Industry/Role]
-    B --> C[Click Start Full]
-    C --> D[Create Pending Assessment in DB]
-    D --> E{Premium Required?}
-    E -->|Yes| F[Redirect to Pricing]
-    F --> G[Complete Payment]
-    G --> H[Redirect to Landing]
-    H --> I[Resume Assessment]
-    I --> J[Complete KBA/PPA/PSV]
-    J --> K[Results Page]
-    K --> L[Badge Auto-Saved if Authenticated]
-```
+### 3. Simplified Implementation
+- No complex state management during assessment
+- Single decision point for premium gating (at start)
+- No mid-flow authentication checks
 
-### Flow 3: Authenticated User → Assessment → Auto-Badge
+### 4. Better Conversion Funnel
+- Anonymous → Complete → See Locked Results → Sign In → Upgrade
+- User has already invested time, more likely to convert
+- Clear path from free trial to paid subscription
 
-```mermaid
-graph TD
-    A[Landing Page] --> B[Select Industry/Role]
-    B --> C[Click Start]
-    C --> D[Create Pending Assessment with user_id]
-    D --> E[Start Assessment]
-    E --> F[Complete Assessment]
-    F --> G[Results Page]
-    G --> H[Badge Auto-Claimed]
-    H --> I[Appears in Dashboard Immediately]
-```
-
-## Benefits of Phase 1 Simplification
-
-### 1. Reduced Complexity
-- **Before:** 7/10 - Multiple state management points, complex conditional logic
-- **After:** 5/10 - Single source of truth, clear decision points
-
-### 2. Better User Experience
-- No lost progress on browser close
-- Seamless resume across devices
-- No manual badge claiming needed
-- Clearer upgrade prompts
-
-### 3. Easier Maintenance
-- Single database table for state
-- Fewer conditional branches
-- Clearer separation of concerns
-- Easier to debug and test
-
-### 4. Better Reliability
-- No sessionStorage limitations
-- Persistent state across sessions
-- Automatic cleanup of expired assessments
-- Reduced race conditions
+---
 
 ## Implementation Checklist
 
 ### Backend
-- [ ] Create migration for `pending_assessments` table
-- [ ] Add `badge_claimed` column to `assessments` table
-- [ ] Create `PendingAssessment` model
-- [ ] Implement POST /api/assessments/pending
-- [ ] Implement GET /api/assessments/pending/{session_id}
-- [ ] Implement DELETE /api/assessments/pending/{id}
-- [ ] Implement GET /api/dashboard/unclaimed-badges
-- [ ] Modify POST /api/assessments/start to check pending assessments
-- [ ] Add premium check to /api/assessments/start (return 402 if required)
-- [ ] Update POST /api/assessments/{id}/claim to set badge_claimed flag
-- [ ] Add cleanup job for expired pending assessments
+- [x] Remove ownership verification from assessment completion endpoints
+- [x] Add `results_locked` field to assessments table
+- [x] Implement quota check at assessment start
+- [x] Return locked responses when `results_locked == true`
+- [x] Add `assessment_id` parameter to OAuth endpoints
+- [x] Transfer assessment on OAuth callback
+- [ ] Update usage service to handle free user trial (1 attempt)
+- [ ] Add webhook handler to unlock assessments on upgrade
 
 ### Frontend
-- [ ] Create session ID utility (localStorage-based)
-- [ ] Update Landing.tsx to use pending assessment API
-- [ ] Simplify Assessment.tsx to use single start endpoint
-- [ ] Remove sessionStorage usage from all components
-- [ ] Update Results.tsx to remove manual claim button
-- [ ] Add auto-claim logic to Dashboard.tsx
-- [ ] Update AuthContext to trigger badge claim on login
-- [ ] Remove polling logic for tier updates (no longer needed)
-- [ ] Update Pricing page to preserve pending assessment context
+- [ ] Update Landing.tsx to handle 402/403 responses
+- [ ] Update Assessment.tsx to show locked messages
+- [ ] Update Results.tsx to show locked state with upgrade prompt
+- [ ] Pass `assessment_id` to OAuth login links
+- [ ] Remove authentication checks from assessment flow
+- [ ] Add upgrade prompts at results page
 
 ### Testing
-- [ ] Test anonymous user quick assessment flow
-- [ ] Test anonymous user premium assessment with payment
-- [ ] Test authenticated user assessment with auto-badge
-- [ ] Test browser close/reopen resume
-- [ ] Test cross-device resume (same session ID)
-- [ ] Test expired pending assessment cleanup
-- [ ] Test unclaimed badge auto-claim on login
-- [ ] Test premium gating at assessment start
+- [ ] Test anonymous user freemium flow (no lock)
+- [ ] Test anonymous user premium flow (locked results)
+- [ ] Test free user premium flow (1 trial, then locked)
+- [ ] Test premium user flow (3/month quota)
+- [ ] Test enterprise user flow (unlimited)
+- [ ] Test assessment transfer on OAuth login
+- [ ] Test results unlock after upgrade
+
+---
 
 ## Migration Strategy
 
-1. **Deploy database migration** - Add new tables/columns
-2. **Deploy backend changes** - New endpoints + modified logic
-3. **Deploy frontend changes** - Updated components
-4. **Monitor for 24 hours** - Check for errors, state issues
-5. **Clean up old code** - Remove sessionStorage logic after validation
+1. **Deploy backend changes** - Remove auth checks, add results locking
+2. **Deploy frontend changes** - Update UI to handle locked states
+3. **Monitor conversion rates** - Track anonymous → authenticated → paid
+4. **Iterate on messaging** - Optimize upgrade prompts based on data
 
-## Rollback Plan
+---
 
-If issues arise:
-1. Revert frontend to use sessionStorage
-2. Keep database tables (no harm in having them)
-3. Disable new endpoints
-4. Investigate and fix issues
-5. Re-deploy when ready
+## Success Metrics
 
-## Future Phases
-
-**Phase 2 (Complexity 4/10):**
-- Stripe Embedded Checkout (no redirect)
-- Server-Sent Events for real-time updates
-- Unified payment flow
-
-**Phase 3 (Complexity 3/10):**
-- Simplified authentication (SSO only or magic links)
-- Remove traditional email/password
-- Streamlined user onboarding
+- **Anonymous completion rate**: % of anonymous users who complete assessments
+- **Sign-in conversion**: % of anonymous users who sign in after completion
+- **Upgrade conversion**: % of free users who upgrade after seeing locked results
+- **Trial usage**: % of free users who use their 1 trial for premium features
+- **Premium retention**: % of premium users who stay subscribed month-over-month

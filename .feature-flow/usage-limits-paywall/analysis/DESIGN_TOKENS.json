@@ -1,0 +1,522 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "extracted_from": "prk-poc frontend codebase",
+    "last_updated": "2026-04-04",
+    "notes": "Design tokens extracted from inline styles across components. No centralized design system exists."
+  },
+  "colors": {
+    "matrix": {
+      "primary": "#00ff41",
+      "primaryRgba": "rgba(0,255,65,1)",
+      "secondary": "#008f11",
+      "background": {
+        "solid": "#000000",
+        "overlay": "rgba(0,15,0,0.6)",
+        "overlayLight": "rgba(0,15,0,0.4)",
+        "overlayDark": "rgba(0,15,0,0.8)"
+      },
+      "text": {
+        "primary": "#c0ffc0",
+        "secondary": "#008f11",
+        "bright": "#00ff41"
+      },
+      "border": {
+        "default": "rgba(0,255,65,0.1)",
+        "medium": "rgba(0,255,65,0.15)",
+        "strong": "rgba(0,255,65,0.2)",
+        "bright": "rgba(0,255,65,0.3)"
+      },
+      "shadow": {
+        "glow": "0 0 10px rgba(0,255,65,0.3)",
+        "glowMedium": "0 0 20px rgba(0,255,65,0.4)",
+        "glowStrong": "0 0 30px rgba(0,255,65,0.1)",
+        "glowBright": "0 0 40px rgba(0,255,65,0.5)"
+      },
+      "error": "#ff4444"
+    },
+    "premium": {
+      "gradient": {
+        "primary": "linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 50%, #EC41FB 100%)",
+        "primaryAlt": "linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 40%, #EC41FB 100%)"
+      },
+      "purple": {
+        "base": "#6D5FFA",
+        "mid": "#8B5CF6",
+        "bright": "#EC41FB",
+        "light": "#C4B5FD"
+      },
+      "background": {
+        "dark": "linear-gradient(180deg, rgba(17,20,40,0.96) 0%, rgba(10,7,20,0.98) 100%)",
+        "overlay": "rgba(3, 7, 18, 0.82)",
+        "card": "rgba(255,255,255,0.04)",
+        "cardActive": "rgba(109,95,250,0.16)",
+        "cardHover": "rgba(255,255,255,0.05)",
+        "cardBorder": "rgba(255,255,255,0.08)"
+      },
+      "text": {
+        "primary": "#F8FAFC",
+        "secondary": "#CBD5E1",
+        "tertiary": "#94A3B8",
+        "muted": "#64748B"
+      },
+      "border": {
+        "default": "rgba(255,255,255,0.1)",
+        "light": "rgba(255,255,255,0.06)",
+        "medium": "rgba(255,255,255,0.12)",
+        "purple": "rgba(109,95,250,0.35)",
+        "purpleStrong": "rgba(109,95,250,0.45)"
+      },
+      "shadow": {
+        "card": "0 28px 80px rgba(0,0,0,0.45)",
+        "button": "0 18px 40px rgba(109,95,250,0.32)",
+        "active": "0 12px 30px rgba(109,95,250,0.18)"
+      },
+      "success": {
+        "base": "#10B981",
+        "light": "#6EE7B7",
+        "background": "rgba(16,185,129,0.18)",
+        "border": "rgba(16,185,129,0.4)"
+      },
+      "error": {
+        "base": "#EF4444",
+        "light": "#FECACA",
+        "background": "rgba(127, 29, 29, 0.32)",
+        "border": "rgba(248, 113, 113, 0.35)"
+      },
+      "glow": {
+        "purple": "radial-gradient(circle, rgba(236,65,251,0.28) 0%, rgba(236,65,251,0) 72%)"
+      }
+    },
+    "level": {
+      "1": "#666666",
+      "2": "#008f11",
+      "3": "#00ff41",
+      "4": "#6D5FFA",
+      "5": "#EC41FB"
+    },
+    "semantic": {
+      "error": "#ff4444",
+      "success": "#00ff41",
+      "warning": "#FFA500",
+      "info": "#00ff41"
+    }
+  },
+  "typography": {
+    "fontFamilies": {
+      "matrix": {
+        "heading": "'Press Start 2P', monospace",
+        "body": "'Share Tech Mono', monospace",
+        "mono": "'Courier New', monospace"
+      },
+      "premium": {
+        "default": "system-ui, -apple-system, sans-serif"
+      }
+    },
+    "fontSizes": {
+      "matrix": {
+        "xs": "0.55rem",
+        "sm": "0.6rem",
+        "base": "0.7rem",
+        "md": "0.8rem",
+        "lg": "0.85rem",
+        "xl": "1rem",
+        "2xl": "1.2rem",
+        "3xl": "2rem",
+        "4xl": "3rem"
+      },
+      "premium": {
+        "xs": "0.75rem",
+        "sm": "0.82rem",
+        "base": "0.92rem",
+        "md": "0.98rem",
+        "lg": "1rem",
+        "xl": "1.15rem",
+        "2xl": "1.35rem",
+        "3xl": "2rem",
+        "4xl": "3.5rem"
+      }
+    },
+    "fontWeights": {
+      "normal": 400,
+      "medium": 500,
+      "bold": 700,
+      "extrabold": 800,
+      "black": 900
+    },
+    "lineHeights": {
+      "tight": 1,
+      "snug": 1.05,
+      "normal": 1.5,
+      "relaxed": 1.55,
+      "loose": 1.65
+    },
+    "letterSpacing": {
+      "tight": "-0.05em",
+      "normal": "0",
+      "wide": "0.05em",
+      "wider": "0.08em",
+      "widest": "2px",
+      "extraWide": "3px"
+    }
+  },
+  "spacing": {
+    "scale": {
+      "0": "0",
+      "1": "0.25rem",
+      "2": "0.3rem",
+      "3": "0.35rem",
+      "4": "0.4rem",
+      "5": "0.5rem",
+      "6": "0.75rem",
+      "7": "0.85rem",
+      "8": "0.9rem",
+      "9": "0.95rem",
+      "10": "1rem",
+      "12": "1.25rem",
+      "14": "1.5rem",
+      "16": "2rem",
+      "18": "2.5rem",
+      "20": "3rem"
+    },
+    "padding": {
+      "button": {
+        "sm": "6px 12px",
+        "md": "10px 14px",
+        "lg": "12px 24px",
+        "xl": "16px 18px"
+      },
+      "card": {
+        "sm": "1rem",
+        "md": "1.5rem",
+        "lg": "2rem",
+        "xl": "32px 30px 28px"
+      },
+      "input": "10px 14px"
+    },
+    "gap": {
+      "xs": "0.75rem",
+      "sm": "1rem",
+      "md": "1.5rem",
+      "lg": "2rem"
+    }
+  },
+  "borderRadius": {
+    "none": "0",
+    "sm": "4px",
+    "md": "8px",
+    "lg": "14px",
+    "xl": "16px",
+    "2xl": "18px",
+    "3xl": "20px",
+    "4xl": "28px",
+    "full": "999px"
+  },
+  "borders": {
+    "width": {
+      "default": "1px",
+      "thick": "2px"
+    },
+    "style": {
+      "solid": "solid",
+      "none": "none"
+    }
+  },
+  "shadows": {
+    "matrix": {
+      "sm": "0 0 10px rgba(0,255,65,0.3)",
+      "md": "0 0 20px rgba(0,255,65,0.4)",
+      "lg": "0 0 30px rgba(0,255,65,0.1)",
+      "xl": "0 0 40px rgba(0,255,65,0.5)"
+    },
+    "premium": {
+      "sm": "0 12px 30px rgba(109,95,250,0.18)",
+      "md": "0 18px 40px rgba(109,95,250,0.32)",
+      "lg": "0 28px 80px rgba(0,0,0,0.45)"
+    }
+  },
+  "effects": {
+    "backdropFilter": {
+      "blur": "blur(10px)"
+    },
+    "transitions": {
+      "default": "0.3s ease",
+      "fast": "0.15s ease",
+      "slow": "0.5s ease"
+    },
+    "animations": {
+      "spin": {
+        "name": "spin",
+        "duration": "1s",
+        "timing": "linear",
+        "iteration": "infinite"
+      },
+      "scoreCount": {
+        "interval": "30ms",
+        "steps": 40
+      }
+    }
+  },
+  "layout": {
+    "maxWidth": {
+      "modal": "540px",
+      "modalLarge": "600px",
+      "modalPercent": "90%",
+      "content": "700px"
+    },
+    "minHeight": {
+      "fullScreen": "100vh",
+      "section": "60vh"
+    },
+    "zIndex": {
+      "modal": 1000,
+      "overlay": 999,
+      "dropdown": 100
+    }
+  },
+  "grid": {
+    "columns": {
+      "auto": "repeat(auto-fit, minmax(100px, 1fr))",
+      "autoMd": "repeat(auto-fit, minmax(130px, 1fr))",
+      "autoLg": "repeat(auto-fit, minmax(150px, 1fr))",
+      "two": "repeat(2, minmax(0, 1fr))"
+    },
+    "gap": {
+      "sm": "0.75rem",
+      "md": "1rem",
+      "lg": "2rem"
+    }
+  },
+  "components": {
+    "button": {
+      "matrix": {
+        "primary": {
+          "background": "rgba(0,15,0,0.6)",
+          "color": "#00ff41",
+          "border": "1px solid rgba(0,255,65,0.2)",
+          "borderRadius": "4px",
+          "padding": "12px 28px",
+          "fontSize": "0.9rem",
+          "fontFamily": "'Share Tech Mono', monospace"
+        },
+        "secondary": {
+          "background": "transparent",
+          "color": "#00ff41",
+          "border": "1px solid #00ff41",
+          "borderRadius": "4px",
+          "padding": "0.5rem 1rem",
+          "fontSize": "0.9rem"
+        }
+      },
+      "premium": {
+        "primary": {
+          "background": "linear-gradient(135deg, #6D5FFA 0%, #8B5CF6 50%, #EC41FB 100%)",
+          "color": "#FFFFFF",
+          "border": "none",
+          "borderRadius": "16px",
+          "padding": "16px 18px",
+          "fontSize": "1rem",
+          "fontWeight": 800,
+          "boxShadow": "0 18px 40px rgba(109,95,250,0.32)"
+        },
+        "secondary": {
+          "background": "transparent",
+          "color": "#00ff41",
+          "border": "1px solid #00ff41",
+          "borderRadius": "4px",
+          "padding": "0.75rem 1.5rem",
+          "fontSize": "1rem"
+        }
+      }
+    },
+    "card": {
+      "matrix": {
+        "default": {
+          "background": "rgba(0,15,0,0.6)",
+          "border": "1px solid rgba(0,255,65,0.2)",
+          "borderRadius": "8px",
+          "padding": "2rem",
+          "boxShadow": "0 0 30px rgba(0,255,65,0.1)"
+        },
+        "light": {
+          "background": "rgba(0,15,0,0.4)",
+          "border": "1px solid rgba(0,255,65,0.15)",
+          "borderRadius": "4px",
+          "padding": "1rem"
+        }
+      },
+      "premium": {
+        "default": {
+          "background": "rgba(255,255,255,0.04)",
+          "border": "1px solid rgba(255,255,255,0.06)",
+          "borderRadius": "16px",
+          "padding": "0.85rem 0.95rem"
+        },
+        "active": {
+          "background": "rgba(109,95,250,0.16)",
+          "border": "1px solid rgba(109,95,250,0.45)",
+          "borderRadius": "18px",
+          "boxShadow": "0 12px 30px rgba(109,95,250,0.18)"
+        }
+      }
+    },
+    "modal": {
+      "overlay": {
+        "matrix": {
+          "background": "rgba(0,0,0,0.5)",
+          "backdropFilter": "none"
+        },
+        "premium": {
+          "background": "rgba(3, 7, 18, 0.82)",
+          "backdropFilter": "blur(10px)"
+        }
+      },
+      "container": {
+        "matrix": {
+          "background": "white",
+          "borderRadius": "8px",
+          "maxWidth": "500px"
+        },
+        "premium": {
+          "background": "linear-gradient(180deg, rgba(17,20,40,0.96) 0%, rgba(10,7,20,0.98) 100%)",
+          "border": "1px solid rgba(255,255,255,0.1)",
+          "borderRadius": "28px",
+          "maxWidth": "540px",
+          "boxShadow": "0 28px 80px rgba(0,0,0,0.45)"
+        }
+      },
+      "closeButton": {
+        "matrix": {
+          "width": "24px",
+          "height": "24px",
+          "fontSize": "24px",
+          "background": "none",
+          "border": "none"
+        },
+        "premium": {
+          "width": "36px",
+          "height": "36px",
+          "fontSize": "22px",
+          "background": "rgba(255,255,255,0.06)",
+          "border": "1px solid rgba(255,255,255,0.12)",
+          "borderRadius": "999px"
+        }
+      }
+    },
+    "badge": {
+      "matrix": {
+        "default": {
+          "background": "rgba(0,255,65,0.1)",
+          "border": "1px solid rgba(0,255,65,0.3)",
+          "color": "#00ff41",
+          "fontSize": "0.75rem",
+          "padding": "6px 12px",
+          "borderRadius": "4px",
+          "fontFamily": "'Share Tech Mono', monospace"
+        },
+        "level": {
+          "padding": "8px 20px",
+          "fontSize": "0.7rem",
+          "letterSpacing": "2px",
+          "fontFamily": "'Press Start 2P', monospace"
+        }
+      },
+      "premium": {
+        "default": {
+          "background": "rgba(109,95,250,0.16)",
+          "border": "1px solid rgba(109,95,250,0.35)",
+          "color": "#C4B5FD",
+          "fontSize": "0.75rem",
+          "fontWeight": 800,
+          "letterSpacing": "0.08em",
+          "padding": "0.4rem 0.75rem",
+          "borderRadius": "999px"
+        }
+      }
+    },
+    "input": {
+      "matrix": {
+        "background": "rgba(0,15,0,0.8)",
+        "border": "1px solid rgba(0,255,65,0.2)",
+        "borderRadius": "4px",
+        "color": "#c0ffc0",
+        "fontSize": "0.9rem",
+        "padding": "10px 14px",
+        "fontFamily": "'Share Tech Mono', monospace"
+      }
+    },
+    "progressBar": {
+      "matrix": {
+        "container": {
+          "background": "#0a0a0a",
+          "border": "1px solid #00ff41",
+          "borderRadius": "4px",
+          "height": "1.25rem"
+        },
+        "fill": {
+          "background": "#00ff41",
+          "transition": "width 0.3s ease"
+        }
+      }
+    },
+    "phaseIndicator": {
+      "active": {
+        "fontFamily": "'Press Start 2P', monospace",
+        "fontSize": "0.6rem",
+        "color": "#00ff41",
+        "padding": "6px 14px",
+        "border": "1px solid rgba(0,255,65,0.3)",
+        "borderRadius": "4px",
+        "background": "rgba(0,255,65,0.08)"
+      },
+      "inactive": {
+        "fontFamily": "'Press Start 2P', monospace",
+        "fontSize": "0.6rem",
+        "color": "#008f11",
+        "padding": "6px 14px",
+        "border": "1px solid rgba(0,255,65,0.08)",
+        "borderRadius": "4px",
+        "opacity": 0.4
+      }
+    }
+  },
+  "breakpoints": {
+    "note": "No explicit breakpoints defined. Components use inline styles with fixed pixel values.",
+    "suggested": {
+      "mobile": "320px",
+      "tablet": "768px",
+      "desktop": "1024px",
+      "wide": "1440px"
+    }
+  },
+  "accessibility": {
+    "focusRing": {
+      "matrix": "2px solid #00ff41",
+      "premium": "2px solid #6D5FFA"
+    },
+    "minTouchTarget": "44px",
+    "notes": [
+      "Some buttons may be below minimum touch target size",
+      "Focus states not explicitly defined in current implementation",
+      "Color contrast should be verified for WCAG compliance"
+    ]
+  },
+  "usage_notes": {
+    "matrix_theme": "Used for assessment pages, results, dashboard. Retro terminal aesthetic with green glow effects.",
+    "premium_theme": "Used for upgrade modals, payment flows. Modern glassmorphic design with purple gradients.",
+    "inconsistencies": [
+      "No centralized theme file - tokens duplicated across components",
+      "Two distinct visual languages without clear transition",
+      "Font sizes not on consistent scale",
+      "Spacing values are arbitrary, not from a scale"
+    ],
+    "recommendations": [
+      "Create unified design system that bridges both themes",
+      "Establish consistent spacing scale (4px or 8px base)",
+      "Define typography scale with clear hierarchy",
+      "Centralize color tokens to prevent drift",
+      "Add responsive breakpoints",
+      "Define focus states for accessibility"
+    ]
+  }
+}

@@ -618,8 +618,16 @@ export default function Landing() {
     console.log('[Landing] Assessment start response status:', res.status)
 
     if (res.status === 402) {
-      // Premium required
-      throw new Error('PREMIUM_REQUIRED')
+      // Free trial exhausted - extract usage details
+      const data = await res.json()
+      const detail = data.detail || {}
+      const errorData = {
+        message: detail.message || 'Free trial used. Upgrade to Premium for 3 full assessments per month.',
+        used: detail.used || 1,
+        limit: detail.limit || 1,
+        upgrade_required: detail.upgrade_required || true
+      }
+      throw new Error(JSON.stringify(errorData))
     }
 
     if (!res.ok) {
@@ -746,13 +754,20 @@ export default function Landing() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to start assessment'
 
-      if (message === 'PREMIUM_REQUIRED') {
-        // Redirect to pricing page
-        setShowUpgradeModal(true)
-        setError('Premium subscription required for this industry/role combination')
-      } else {
-        setError(message)
+      // Check if this is a 402 error with usage details
+      try {
+        const errorData = JSON.parse(message)
+        if (errorData.upgrade_required) {
+          // Show upgrade modal with usage information
+          setShowUpgradeModal(true)
+          setError(`${errorData.message} (${errorData.used}/${errorData.limit} used)`)
+          return
+        }
+      } catch {
+        // Not a JSON error, continue with normal error handling
       }
+
+      setError(message)
     } finally {
       setLoading(false)
     }

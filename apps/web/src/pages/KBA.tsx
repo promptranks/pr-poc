@@ -171,8 +171,22 @@ export default function KBA({ assessmentId, questions, onComplete }: KBAProps) {
         throw new Error(data.detail || 'Failed to submit answers')
       }
 
-      const result: KBAResult = await res.json()
-      onComplete(result)
+      const result = await res.json()
+
+      // Check if results are locked
+      if (result.results_locked) {
+        // Pass locked result to parent - let Assessment.tsx handle the upgrade message
+        onComplete({
+          kba_score: 0,
+          total_correct: 0,
+          total_questions: questions.length,
+          pillar_scores: {},
+          results_locked: true,
+          message: result.message || 'You are assessing with premium features. Upgrade to Premium to view your scores.'
+        })
+      } else {
+        onComplete(result as KBAResult)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Submission failed'
       setError(message)

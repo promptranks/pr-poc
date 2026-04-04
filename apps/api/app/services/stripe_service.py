@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.stripe_customer import StripeCustomer
 from app.models.user import User
+from app.models.user_usage import UserUsage
 from app.services.email_service import EmailService
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -117,6 +118,36 @@ class StripeService:
         if hasattr(stripe_customer, "updated_at"):
             stripe_customer.updated_at = datetime.now(timezone.utc)
 
+        # Update current month's usage limit to premium (3)
+        from app.services.usage_service import UsageService
+        period_start, period_end = UsageService.get_current_period()
+
+        result = await db.execute(
+            select(UserUsage).where(
+                UserUsage.user_id == user_id,
+                UserUsage.period_start == period_start
+            )
+        )
+        usage = await _resolve(result.scalar_one_or_none())
+
+        if usage:
+            # User has existing usage record (was free, took assessments)
+            # Update limit to premium (3), keep existing used count
+            usage.full_assessments_limit = 3
+            usage.updated_at = datetime.now(timezone.utc)
+            logger.info(f"Webhook: Updated usage limit to 3, used={usage.full_assessments_used}")
+        else:
+            # No usage record yet, create new one
+            usage = UserUsage(
+                user_id=user_id,
+                period_start=period_start,
+                period_end=period_end,
+                full_assessments_used=0,
+                full_assessments_limit=3
+            )
+            db.add(usage)
+            logger.info(f"Webhook: Created new usage record 0/3")
+
         await db.commit()
 
         logger.info(f"Webhook: Successfully updated user {user.email} to premium tier")
@@ -143,3 +174,59 @@ class StripeService:
                 stripe_customer.updated_at = datetime.now(timezone.utc)
 
             await db.commit()
+
+    @staticmethod
+    async def handle_payment_failed(invoice: dict, db: AsyncSession):
+        """Handle failed payment - log and notify user."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        customer_id = invoice.get("customer")
+        attempt_count = invoice.get("attempt_count", 0)
+
+        # Find user by stripe_customer_id
+        result = await db.execute(
+            select(StripeCustomer).where(StripeCustomer.stripe_customer_id == customer_id)
+        )
+        stripe_customer = await _resolve(result.scalar_one_or_none())
+
+        if not stripe_customer:
+            logger.warning(f"Payment failed for unknown customer {customer_id}")
+            return
+
+        result = await db.execute(select(User).where(User.id == stripe_customer.user_id))
+        user = await _resolve(result.scalar_one())
+
+        logger.warning(f"Payment failed for user {user.email}, attempt {attempt_count}")
+
+        # Send notification email (optional)
+        # EmailService.send_payment_failed_email(user.email, user.name, attempt_count)
+
+        # Stripe will retry automatically
+        # After final retry fails, customer.subscription.deleted will fire
+
+    @staticmethod
+    async def handle_invoice_paid(invoice: dict, db: AsyncSession):
+        """Log successful monthly renewal."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        customer_id = invoice.get("customer")
+        amount_paid = invoice.get("amount_paid", 0) / 100  # Convert cents to dollars
+
+        logger.info(f"Invoice paid: customer={customer_id}, amount=${amount_paid}")
+
+        # Optional: Log to analytics, send receipt email
+
+    @staticmethod
+    async def handle_subscription_updated(subscription: dict, db: AsyncSession):
+        """Handle subscription changes (plan change, pause, etc.)."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        customer_id = subscription.get("customer")
+        status = subscription.get("status")
+
+        logger.info(f"Subscription updated: customer={customer_id}, status={status}")
+
+        # Optional: Handle status changes (paused, past_due, etc.)

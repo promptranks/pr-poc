@@ -273,11 +273,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {data.usage.tier === 'premium' && (
+      {data.usage && (
         <div style={styles.usageCard}>
           <h3>Usage This Month</h3>
           <p style={styles.usageText}>
-            {data.usage.full_assessments_used} / {data.usage.full_assessments_limit} full assessments used
+            {data.usage.full_assessments_used} / {data.usage.full_assessments_limit} {data.usage.tier === 'free' ? 'Premium Trial' : 'full assessments used'}
           </p>
           <div style={styles.progressBar}>
             <div
@@ -287,6 +287,11 @@ export default function Dashboard() {
               }}
             />
           </div>
+          {data.usage.tier === 'free' && data.usage.full_assessments_used >= data.usage.full_assessments_limit && (
+            <p style={styles.upgradePromptText}>
+              Your free trial is used. <button style={styles.upgradeLink} onClick={() => setShowUpgradeModal(true)}>Upgrade to Premium</button> for 3 full assessments per month.
+            </p>
+          )}
         </div>
       )}
 
@@ -497,6 +502,20 @@ const styles = {
     cursor: 'pointer',
     fontFamily: "'Courier New', monospace",
     fontWeight: 'bold' as const,
+  },
+  upgradePromptText: {
+    marginTop: '1rem',
+    color: '#008f11',
+    fontSize: '0.9rem',
+  },
+  upgradeLink: {
+    background: 'none',
+    border: 'none',
+    color: '#00ff41',
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    fontFamily: "'Courier New', monospace",
+    fontSize: '0.9rem',
   },
   loadingContainer: {
     display: 'flex',

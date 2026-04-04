@@ -33,11 +33,18 @@ export default function UsageBadge() {
     fetchUsage()
   }, [user, token])
 
-  if (!usage || usage.tier !== 'premium') return null
+  // Show for both free and premium users
+  if (!usage) return null
+
+  const isNearLimit = usage.tier === 'premium' && usage.full_assessments_used >= usage.full_assessments_limit - 1
+  const isAtLimit = usage.full_assessments_used >= usage.full_assessments_limit
 
   return (
-    <div style={styles.badge}>
-      {usage.full_assessments_used}/{usage.full_assessments_limit} assessments
+    <div style={{
+      ...styles.badge,
+      ...(isAtLimit ? styles.badgeAtLimit : isNearLimit ? styles.badgeNearLimit : {})
+    }}>
+      {usage.full_assessments_used}/{usage.full_assessments_limit} {usage.tier === 'free' ? 'trial' : 'assessments'}
     </div>
   )
 }
@@ -51,5 +58,15 @@ const styles = {
     color: '#00ff41',
     fontSize: '0.75rem',
     fontFamily: "'Share Tech Mono', monospace",
+  },
+  badgeNearLimit: {
+    background: 'rgba(255,165,0,0.1)',
+    border: '1px solid rgba(255,165,0,0.3)',
+    color: '#FFA500',
+  },
+  badgeAtLimit: {
+    background: 'rgba(255,68,68,0.1)',
+    border: '1px solid rgba(255,68,68,0.3)',
+    color: '#ff4444',
   }
 }
